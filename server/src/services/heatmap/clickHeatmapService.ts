@@ -59,14 +59,10 @@ export class ClickHeatmapService {
   ): Promise<ClickHeatmapResult> {
     const { viewportBreakpoint = "all", gridResolution = 100 } = options;
 
-    // Build time statement for filtering
     const timeStatement = getTimeStatement(options).replace(/timestamp/g, "src.timestamp");
     const viewportCondition = getViewportCondition(viewportBreakpoint).replace(/viewport_width/g, "src.viewport_width");
 
-    // Build pathname pattern for LIKE query
-    // Remove trailing slashes and handle exact match
     const cleanPathname = pathname.replace(/\/+$/, "") || "/";
-    const pathnamePattern = cleanPathname === "/" ? "/" : `%${cleanPathname}%`;
 
     const query = `
       SELECT
@@ -81,7 +77,7 @@ export class ClickHeatmapService {
         AND src.x >= 0 AND src.y >= 0
         AND src.x <= src.viewport_width
         AND src.y <= src.viewport_height
-        AND srm.page_url LIKE {pathnamePattern:String}
+        AND path(srm.page_url) = {pathname:String}
         ${viewportCondition}
         ${timeStatement}
       GROUP BY x, y
@@ -99,7 +95,7 @@ export class ClickHeatmapService {
       WHERE src.site_id = {siteId:UInt16}
         AND src.viewport_width > 0
         AND src.viewport_height > 0
-        AND srm.page_url LIKE {pathnamePattern:String}
+        AND path(srm.page_url) = {pathname:String}
         ${viewportCondition}
         ${timeStatement}
     `;
@@ -107,12 +103,12 @@ export class ClickHeatmapService {
     const [pointsResult, statsResult] = await Promise.all([
       clickhouse.query({
         query,
-        query_params: { siteId, pathnamePattern, gridResolution },
+        query_params: { siteId, pathname: cleanPathname, gridResolution },
         format: "JSONEachRow",
       }),
       clickhouse.query({
         query: statsQuery,
-        query_params: { siteId, pathnamePattern },
+        query_params: { siteId, pathname: cleanPathname },
         format: "JSONEachRow",
       }),
     ]);
@@ -139,7 +135,7 @@ export class ClickHeatmapService {
   ): Promise<HeatmapPage[]> {
     const { limit = 100 } = options;
 
-    const timeStatement = getTimeStatement(options).replace(/timestamp/g, "sre.timestamp");
+    const timeStatement = getTimeStatement(options).replace(/timestamp/g, "src.timestamp");
 
     // Query the dedicated session_replay_clicks table
     // This table is populated during ingestion with click coordinates extracted from rrweb events

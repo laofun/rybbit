@@ -171,6 +171,13 @@ export class SessionReplayIngestService {
       click_type: number;
     }> = [];
 
+    if (viewportWidth <= 0 || viewportHeight <= 0) {
+      console.warn(
+        `[heatmap] skipping click extraction for session ${sessionId}: missing viewport dimensions (${viewportWidth}x${viewportHeight})`
+      );
+      return clicks;
+    }
+
     for (const event of events) {
       // Check if this is an IncrementalSnapshot (type 3)
       if (event.type !== 3 && event.type !== "3") continue;

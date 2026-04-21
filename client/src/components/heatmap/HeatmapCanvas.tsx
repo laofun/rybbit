@@ -43,8 +43,10 @@ export function HeatmapCanvas({
     // Clear canvas
     ctx.clearRect(0, 0, width, height);
 
-    // Find max value for normalization
-    const maxValue = Math.max(...points.map((p) => p.value), 1);
+    let maxValue = 1;
+    for (const p of points) {
+      if (p.value > maxValue) maxValue = p.value;
+    }
 
     // Create offscreen canvas for the alpha mask
     const alphaCanvas = document.createElement("canvas");

@@ -21,8 +21,6 @@ export default function HeatmapsPage() {
   const { data: siteData } = useGetSite(site);
   const { data: pagesData, isLoading: isPagesLoading } = useGetHeatmapPages();
 
-  console.info(pagesData);
-
   const [selectedPathname, setSelectedPathname] = useState<string | null>(null);
   const [viewportBreakpoint, setViewportBreakpoint] = useState<ViewportBreakpoint>("all");
 

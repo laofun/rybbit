@@ -15,10 +15,19 @@ export async function getHeatmapPages(req: FastifyRequest<GetHeatmapPagesRequest
   const { limit, ...filterParams } = req.query;
   const siteId = Number(req.params.siteId);
 
+  if (!Number.isFinite(siteId) || siteId <= 0 || siteId > 65535) {
+    return res.status(400).send({ error: "invalid siteId" });
+  }
+
+  const parsedLimit = limit ? Number(limit) : 100;
+  const clampedLimit = Number.isFinite(parsedLimit)
+    ? Math.min(1000, Math.max(1, Math.floor(parsedLimit)))
+    : 100;
+
   try {
     const pages = await clickHeatmapService.getHeatmapPages(siteId, {
       ...filterParams,
-      limit: limit ? Number(limit) : 100,
+      limit: clampedLimit,
     });
 
     return res.send({
