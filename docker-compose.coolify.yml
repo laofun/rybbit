@@ -1,3 +1,17 @@
+# Rybbit fork - Coolify Docker Compose Build Pack deployment.
+#
+# This compose intentionally has NO Traefik labels and NO SERVICE_FQDN_*
+# magic vars. Per Coolify docs, the recommended way is to set the Domain
+# field per-service in the Coolify UI:
+#   - client  service: https://<your-domain>:3002
+#   - backend service: https://<your-api-domain>:3001
+# Use SUBDOMAIN routing (separate subdomain for backend) - avoids the
+# StripPrefix middleware Coolify auto-adds on path-based domains.
+#
+# Coolify auto-generates Traefik labels, attaches the coolify network,
+# and obtains certs from the Domain field values. Wildcard domain on the
+# server (e.g. *.lab.destini.vn) is honored - any single-level subdomain
+# under the wildcard reuses the wildcard cert.
 services:
   rybbit-clickhouse:
     image: clickhouse/clickhouse-server:25.4.2
@@ -45,11 +59,6 @@ services:
       context: .
       dockerfile: ./server/Dockerfile
     environment:
-      # Coolify magic var: generates Traefik labels for port 3001 + auto-attach
-      # to coolify network. Set SERVICE_FQDN_BACKEND env in Coolify UI to fix
-      # the subdomain (e.g. https://api.analytics.lab.destini.vn), or leave
-      # unset to let Coolify auto-generate one under the wildcard domain.
-      - SERVICE_FQDN_BACKEND_3001=${SERVICE_FQDN_BACKEND:-}
       - NODE_ENV=production
       - CLICKHOUSE_HOST=http://rybbit-clickhouse:8123
       - CLICKHOUSE_DB=${CLICKHOUSE_DB:-analytics}
@@ -86,10 +95,6 @@ services:
         NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-${BASE_URL}}
         NEXT_PUBLIC_DISABLE_SIGNUP: ${DISABLE_SIGNUP:-false}
     environment:
-      # Coolify magic var: generates Traefik labels for port 3002. Set
-      # SERVICE_FQDN_CLIENT in Coolify UI to fix the main domain
-      # (e.g. https://analytics.lab.destini.vn).
-      - SERVICE_FQDN_CLIENT_3002=${SERVICE_FQDN_CLIENT:-}
       - NODE_ENV=production
       - NEXT_PUBLIC_BACKEND_URL=${NEXT_PUBLIC_BACKEND_URL:-${BASE_URL}}
       - NEXT_PUBLIC_DISABLE_SIGNUP=${DISABLE_SIGNUP:-false}
