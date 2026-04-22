@@ -16,12 +16,17 @@ interface HeatmapViewerProps {
   intensity?: HeatmapIntensity;
 }
 
-/** Minimum iframe height we use even if backend reports a tiny page.
- *  Guards against 0 / 1-fold pages where you'd otherwise see no scroll. */
-const MIN_IFRAME_HEIGHT = 800;
-/** Maximum iframe height. Cross-origin iframes don't auto-fit content,
- *  so we cap to avoid pathological values from the data. */
+/** Floor for iframe height. Pages with no recorded scroll data (legacy
+ *  rows where scroll_y is 0) report pageHeight ≈ viewport_height which
+ *  would equal the visible area and prevent scrolling entirely. We give
+ *  ourselves at least this much vertical space so the page can render
+ *  its full natural height inside the iframe. */
+const MIN_IFRAME_HEIGHT = 4000;
+/** Cap to avoid pathological values from bad data eating browser memory. */
 const MAX_IFRAME_HEIGHT = 20000;
+/** When recorded page height is unreliable (≤ this multiple of one
+ *  viewport), fall back to MIN_IFRAME_HEIGHT instead. */
+const UNRELIABLE_PAGE_HEIGHT_MULT = 1.2;
 
 export function HeatmapViewer({
   pathname,
@@ -85,16 +90,21 @@ export function HeatmapViewer({
   // Visible area for the scroller (everything below the stats bar).
   const visibleHeight = Math.max(200, height - 48);
 
-  // We render the iframe at the page's actual recorded height, scaled by
-  // the ratio of UI width to the recorded viewport width. This keeps the
-  // aspect ratio correct so heatmap dots line up with elements in the
-  // iframe across responsive breakpoints.
+  // Render iframe at the recorded page height, scaled by ui-width /
+  // recorded-viewport-width to preserve aspect ratio. If the recorded
+  // height is suspiciously close to one viewport (likely legacy data
+  // without scroll context), fall back to a generous default so the
+  // user can still scroll the iframe to see the full page.
+  const refViewportHeight = data?.data.viewportHeight || 0;
   const scale = refViewportWidth > 0 ? width / refViewportWidth : 1;
   const scaledPageHeight = refPageHeight > 0 ? Math.round(refPageHeight * scale) : 0;
-  const iframeHeight = Math.max(
-    MIN_IFRAME_HEIGHT,
-    Math.min(MAX_IFRAME_HEIGHT, scaledPageHeight || visibleHeight)
-  );
+  const isReliablePageHeight =
+    refPageHeight > 0 &&
+    refViewportHeight > 0 &&
+    refPageHeight > refViewportHeight * UNRELIABLE_PAGE_HEIGHT_MULT;
+  const iframeHeight = isReliablePageHeight
+    ? Math.min(MAX_IFRAME_HEIGHT, Math.max(visibleHeight + 100, scaledPageHeight))
+    : MIN_IFRAME_HEIGHT;
 
   return (
     <div className="flex flex-col h-full">
