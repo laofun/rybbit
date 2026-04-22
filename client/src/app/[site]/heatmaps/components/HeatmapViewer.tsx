@@ -86,25 +86,34 @@ export function HeatmapViewer({
   const uniqueSessions = data?.data.uniqueSessions ?? 0;
   const refPageHeight = data?.data.pageHeight ?? 0;
   const refViewportWidth = data?.data.viewportWidth || width;
+  const refViewportHeight = data?.data.viewportHeight || 0;
 
   // Visible area for the scroller (everything below the stats bar).
   const visibleHeight = Math.max(200, height - 48);
 
-  // Render iframe at the recorded page height, scaled by ui-width /
-  // recorded-viewport-width to preserve aspect ratio. If the recorded
-  // height is suspiciously close to one viewport (likely legacy data
-  // without scroll context), fall back to a generous default so the
-  // user can still scroll the iframe to see the full page.
-  const refViewportHeight = data?.data.viewportHeight || 0;
+  // Coordinate-fidelity strategy (same trick Hotjar/Clarity use):
+  // render the iframe at its ORIGINAL recorded width so the page lays
+  // out exactly as it did when clicks were captured, then visually
+  // scale the whole thing down to fit our UI width with CSS transform.
+  // This way clicks recorded at clientX=600 in a 1920-wide viewport
+  // still land on the same DOM element when displayed at 1200 wide.
+  // Without this, responsive layouts shift elements horizontally and
+  // dots appear in empty space.
   const scale = refViewportWidth > 0 ? width / refViewportWidth : 1;
-  const scaledPageHeight = refPageHeight > 0 ? Math.round(refPageHeight * scale) : 0;
   const isReliablePageHeight =
     refPageHeight > 0 &&
     refViewportHeight > 0 &&
     refPageHeight > refViewportHeight * UNRELIABLE_PAGE_HEIGHT_MULT;
-  const iframeHeight = isReliablePageHeight
-    ? Math.min(MAX_IFRAME_HEIGHT, Math.max(visibleHeight + 100, scaledPageHeight))
+  // Iframe natural height (before scale) - either the recorded page
+  // height for new data, or a generous default for legacy rows so the
+  // user can still scroll.
+  const iframeNaturalHeight = isReliablePageHeight
+    ? Math.min(MAX_IFRAME_HEIGHT, refPageHeight)
     : MIN_IFRAME_HEIGHT;
+  // After scaling, the rendered area is this tall - what the user sees
+  // and what the canvas overlay must match.
+  const renderedHeight = Math.max(visibleHeight + 100, Math.round(iframeNaturalHeight * scale));
+  const iframeNaturalWidth = refViewportWidth || width;
 
   return (
     <div className="flex flex-col h-full">
@@ -122,29 +131,36 @@ export function HeatmapViewer({
         </div>
       </div>
 
-      {/* Scrollable preview surface. The iframe is rendered tall enough to
-          fit the recorded page; the wrapper here is what actually scrolls.
-          The HeatmapCanvas overlay is positioned absolutely at the same
-          height as the iframe so dots scroll WITH the iframe content. */}
+      {/* Scrollable preview surface. The iframe is rendered at its
+          original recorded width and then transform-scaled to fit. The
+          outer wrapper is what actually scrolls; canvas sits on top of
+          the scaled iframe so dots stay glued to the elements that
+          received the clicks. */}
       <div
         ref={scrollerRef}
         className="flex-1 relative bg-white dark:bg-neutral-950 rounded-b-lg overflow-y-auto overflow-x-hidden"
         style={{ height: visibleHeight }}
       >
-        <div className="relative" style={{ width: "100%", height: iframeHeight }}>
-          {/* pointer-events: none lets wheel events bubble up to the
-              wrapper so OUR scroll handles the page (the iframe itself
-              would otherwise capture them). Trade-off: clicks on links
-              inside the iframe are also disabled - acceptable for a
-              read-only preview. */}
+        <div className="relative" style={{ width: "100%", height: renderedHeight }}>
+          {/* Iframe is sized to the recorded viewport width / natural
+              page height, then scaled down with CSS transform so the
+              page lays out at recording resolution but visually fills
+              our UI width. transform-origin top-left so 0,0 maps to
+              the same corner as recording. pointer-events: none lets
+              wheel scroll bubble to the wrapper. */}
           <iframe
             src={pageUrl}
-            className="absolute inset-0 w-full"
             style={{
-              height: iframeHeight,
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: iframeNaturalWidth,
+              height: iframeNaturalHeight,
               border: 0,
               pointerEvents: "none",
               opacity: iframeLoaded && !iframeError ? 1 : 0.3,
+              transform: `scale(${scale})`,
+              transformOrigin: "top left",
             }}
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
             onLoad={() => setIframeLoaded(true)}
@@ -156,7 +172,7 @@ export function HeatmapViewer({
             <HeatmapCanvas
               points={points}
               width={width}
-              height={iframeHeight}
+              height={renderedHeight}
               gridResolution={100}
               radius={intensity.radius}
               blur={intensity.blur}
