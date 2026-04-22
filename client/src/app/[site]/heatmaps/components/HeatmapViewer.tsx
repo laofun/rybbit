@@ -73,14 +73,16 @@ export function HeatmapViewer({ pathname, baseUrl, viewportBreakpoint, width, he
 
       {/* Heatmap visualization */}
       <div className="flex-1 relative bg-white dark:bg-neutral-950 rounded-b-lg overflow-hidden">
-        {/* Iframe with page preview */}
+        {/* Iframe with page preview.
+            pointer-events enabled so the user can SCROLL inside the iframe
+            to view long pages. The HeatmapCanvas overlay above already has
+            pointer-events-none so heatmap dots stay non-blocking. */}
         <iframe
           src={pageUrl}
           width={width}
           height={height - 48}
           className="w-full h-full"
           style={{
-            pointerEvents: "none",
             opacity: iframeLoaded && !iframeError ? 1 : 0.3,
           }}
           sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
