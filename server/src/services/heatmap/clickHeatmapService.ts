@@ -3,15 +3,22 @@ import { clickhouse } from "../../db/clickhouse/clickhouse.js";
 import { getTimeStatement, processResults } from "../../api/analytics/utils/utils.js";
 
 export interface HeatmapDataPoint {
-  x: number; // 0-100 percentage
-  y: number; // 0-100 percentage
-  value: number; // click count
+  x: number; // 0..gridResolution (page-relative grid cell, X axis)
+  y: number; // 0..gridResolution (page-relative grid cell, Y axis)
+  value: number; // click count in this cell
 }
 
 export interface ClickHeatmapResult {
   points: HeatmapDataPoint[];
   totalClicks: number;
   uniqueSessions: number;
+  /** Reference page height (px) used to normalize y. Frontend should size
+   *  the canvas to this value (or scale proportionally). */
+  pageHeight: number;
+  /** Reference viewport width used to normalize x. */
+  viewportWidth: number;
+  /** Reference viewport height (px) - used by the UI to know "one fold". */
+  viewportHeight: number;
 }
 
 export interface HeatmapPage {
@@ -46,8 +53,17 @@ function getViewportCondition(breakpoint: ViewportBreakpoint): string {
 
 export class ClickHeatmapService {
   /**
-   * Get aggregated click data for heatmap visualization
-   * Queries the session_replay_clicks table and normalizes coordinates to percentages
+   * Get aggregated click data for heatmap visualization.
+   *
+   * Coordinates are PAGE-relative (page_y = y + scroll_y) so the heatmap
+   * dots stay aligned with elements when the iframe is scrolled. The
+   * reference page height is the max page_y observed across all sampled
+   * clicks (an over-estimate of fold count is harmless - the UI just gets
+   * a slightly taller canvas with empty space at the bottom).
+   *
+   * The pathname filter prefers the click row's own pathname (recorded
+   * from rrweb Meta events for SPA navigations) and falls back to the
+   * session metadata page_url for legacy rows where pathname is empty.
    */
   async getClickHeatmap(
     siteId: number,
@@ -60,24 +76,82 @@ export class ClickHeatmapService {
     const { viewportBreakpoint = "all", gridResolution = 100 } = options;
 
     const timeStatement = getTimeStatement(options).replace(/timestamp/g, "src.timestamp");
-    const viewportCondition = getViewportCondition(viewportBreakpoint).replace(/viewport_width/g, "src.viewport_width");
+    const viewportCondition = getViewportCondition(viewportBreakpoint).replace(
+      /viewport_width/g,
+      "src.viewport_width"
+    );
 
     const cleanPathname = pathname.replace(/\/+$/, "") || "/";
 
+    // First pass: figure out the reference page height for this pathname.
+    // We use the max (y + scroll_y) we have seen so the canvas in the UI
+    // can be sized to cover every recorded click.
+    const dimsQuery = `
+      SELECT
+        toUInt32(max(src.y + src.scroll_y)) AS pageHeight,
+        toUInt16(any(src.viewport_width))   AS viewportWidth,
+        toUInt16(any(src.viewport_height))  AS viewportHeight
+      FROM session_replay_clicks src
+      INNER JOIN session_replay_metadata srm
+        ON src.session_id = srm.session_id AND src.site_id = srm.site_id
+      WHERE src.site_id = {siteId:UInt16}
+        AND src.viewport_width > 0
+        AND src.viewport_height > 0
+        AND (src.pathname = {pathname:String}
+             OR (src.pathname = '' AND path(srm.page_url) = {pathname:String}))
+        ${viewportCondition}
+        ${timeStatement}
+    `;
+
+    const dimsResult = await clickhouse.query({
+      query: dimsQuery,
+      query_params: { siteId, pathname: cleanPathname },
+      format: "JSONEachRow",
+    });
+    const dimsRows = await processResults<{
+      pageHeight: number;
+      viewportWidth: number;
+      viewportHeight: number;
+    }>(dimsResult);
+    const dims = dimsRows[0] ?? { pageHeight: 0, viewportWidth: 0, viewportHeight: 0 };
+
+    // If we have no clicks at all return early - downstream queries would
+    // succeed with empty results but we save two round trips.
+    if (!dims.pageHeight) {
+      return {
+        points: [],
+        totalClicks: 0,
+        uniqueSessions: 0,
+        pageHeight: dims.viewportHeight || 0,
+        viewportWidth: dims.viewportWidth || 0,
+        viewportHeight: dims.viewportHeight || 0,
+      };
+    }
+
+    // pageHeight must be at least one viewport so we never divide by 0
+    // and so the UI canvas is at least as tall as one fold.
+    const pageHeight = Math.max(dims.pageHeight, dims.viewportHeight || 1);
+
+    // Page-relative grid cells. x normalized by viewport width (as before
+    // - horizontal layout is responsive and clicks bucket nicely there);
+    // y normalized by the computed pageHeight so dots scale correctly to
+    // a tall canvas in the UI.
     const query = `
       SELECT
-        ROUND(src.x / src.viewport_width * {gridResolution:UInt16}, 0) as x,
-        ROUND(src.y / src.viewport_height * {gridResolution:UInt16}, 0) as y,
-        COUNT(*) as value
+        ROUND(src.x / src.viewport_width * {gridResolution:UInt16}, 0) AS x,
+        ROUND((src.y + src.scroll_y) / {pageHeight:UInt32} * {gridResolution:UInt16}, 0) AS y,
+        COUNT(*) AS value
       FROM session_replay_clicks src
-      INNER JOIN session_replay_metadata srm ON src.session_id = srm.session_id AND src.site_id = srm.site_id
+      INNER JOIN session_replay_metadata srm
+        ON src.session_id = srm.session_id AND src.site_id = srm.site_id
       WHERE src.site_id = {siteId:UInt16}
         AND src.viewport_width > 0
         AND src.viewport_height > 0
         AND src.x >= 0 AND src.y >= 0
         AND src.x <= src.viewport_width
         AND src.y <= src.viewport_height
-        AND path(srm.page_url) = {pathname:String}
+        AND (src.pathname = {pathname:String}
+             OR (src.pathname = '' AND path(srm.page_url) = {pathname:String}))
         ${viewportCondition}
         ${timeStatement}
       GROUP BY x, y
@@ -88,14 +162,16 @@ export class ClickHeatmapService {
 
     const statsQuery = `
       SELECT
-        COUNT(*) as totalClicks,
-        COUNT(DISTINCT src.session_id) as uniqueSessions
+        COUNT(*) AS totalClicks,
+        COUNT(DISTINCT src.session_id) AS uniqueSessions
       FROM session_replay_clicks src
-      INNER JOIN session_replay_metadata srm ON src.session_id = srm.session_id AND src.site_id = srm.site_id
+      INNER JOIN session_replay_metadata srm
+        ON src.session_id = srm.session_id AND src.site_id = srm.site_id
       WHERE src.site_id = {siteId:UInt16}
         AND src.viewport_width > 0
         AND src.viewport_height > 0
-        AND path(srm.page_url) = {pathname:String}
+        AND (src.pathname = {pathname:String}
+             OR (src.pathname = '' AND path(srm.page_url) = {pathname:String}))
         ${viewportCondition}
         ${timeStatement}
     `;
@@ -103,7 +179,7 @@ export class ClickHeatmapService {
     const [pointsResult, statsResult] = await Promise.all([
       clickhouse.query({
         query,
-        query_params: { siteId, pathname: cleanPathname, gridResolution },
+        query_params: { siteId, pathname: cleanPathname, gridResolution, pageHeight },
         format: "JSONEachRow",
       }),
       clickhouse.query({
@@ -120,12 +196,16 @@ export class ClickHeatmapService {
       points,
       totalClicks: stats[0]?.totalClicks ?? 0,
       uniqueSessions: stats[0]?.uniqueSessions ?? 0,
+      pageHeight,
+      viewportWidth: dims.viewportWidth,
+      viewportHeight: dims.viewportHeight,
     };
   }
 
   /**
-   * Get list of pages that have click data for heatmaps
-   * Returns pages sorted by click count
+   * Get list of pages that have click data for heatmaps. Pages are
+   * resolved from src.pathname when present (covers SPA route changes
+   * after the session started) and fall back to session metadata.
    */
   async getHeatmapPages(
     siteId: number,
@@ -137,15 +217,14 @@ export class ClickHeatmapService {
 
     const timeStatement = getTimeStatement(options).replace(/timestamp/g, "src.timestamp");
 
-    // Query the dedicated session_replay_clicks table
-    // This table is populated during ingestion with click coordinates extracted from rrweb events
     const query = `
       SELECT
-        path(srm.page_url) as pathname,
-        COUNT(*) as clickCount,
-        COUNT(DISTINCT src.session_id) as sessionCount
+        if(src.pathname != '', src.pathname, path(srm.page_url)) AS pathname,
+        COUNT(*) AS clickCount,
+        COUNT(DISTINCT src.session_id) AS sessionCount
       FROM session_replay_clicks src
-      INNER JOIN session_replay_metadata srm ON src.session_id = srm.session_id AND src.site_id = srm.site_id
+      INNER JOIN session_replay_metadata srm
+        ON src.session_id = srm.session_id AND src.site_id = srm.site_id
       WHERE src.site_id = {siteId:UInt16}
         ${timeStatement}
       GROUP BY pathname

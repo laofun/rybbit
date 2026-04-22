@@ -193,6 +193,18 @@ export const initializeClickhouse = async () => {
       `,
   });
 
+  // Add scroll position columns so heatmap can position clicks on the
+  // ABSOLUTE page (page_y = y + scroll_y) instead of just the viewport.
+  // Allows the UI to scroll the iframe and keep dots aligned with elements.
+  await clickhouse.exec({
+    query: `
+      ALTER TABLE session_replay_clicks
+        ADD COLUMN IF NOT EXISTS scroll_x Float32 DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS scroll_y Float32 DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS pathname String DEFAULT ''
+      `,
+  });
+
   // Create uptime monitor events table
   await clickhouse.exec({
     query: `

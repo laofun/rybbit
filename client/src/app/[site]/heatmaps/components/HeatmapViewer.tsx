@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, MousePointerClick } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useGetClickHeatmap } from "../../../../api/analytics/hooks/heatmap/useGetClickHeatmap";
 import { HeatmapCanvas } from "../../../../components/heatmap/HeatmapCanvas";
 import { ViewportBreakpoint } from "../../../../api/analytics/endpoints/heatmap";
@@ -15,6 +15,13 @@ interface HeatmapViewerProps {
   height: number;
   intensity?: HeatmapIntensity;
 }
+
+/** Minimum iframe height we use even if backend reports a tiny page.
+ *  Guards against 0 / 1-fold pages where you'd otherwise see no scroll. */
+const MIN_IFRAME_HEIGHT = 800;
+/** Maximum iframe height. Cross-origin iframes don't auto-fit content,
+ *  so we cap to avoid pathological values from the data. */
+const MAX_IFRAME_HEIGHT = 20000;
 
 export function HeatmapViewer({
   pathname,
@@ -32,8 +39,10 @@ export function HeatmapViewer({
 
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [iframeError, setIframeError] = useState(false);
+  const scrollerRef = useRef<HTMLDivElement>(null);
 
-  // Construct full page URL
+  // Reset iframe state when the URL changes so loading/error overlays
+  // don't stick across page selections (CodeRabbit issue #3).
   const pageUrl = useMemo(() => {
     try {
       const url = new URL(pathname, baseUrl);
@@ -42,6 +51,13 @@ export function HeatmapViewer({
       return `${baseUrl}${pathname}`;
     }
   }, [pathname, baseUrl]);
+
+  useEffect(() => {
+    setIframeLoaded(false);
+    setIframeError(false);
+    // Also reset scroll position when navigating to a new pathname
+    scrollerRef.current?.scrollTo({ top: 0 });
+  }, [pageUrl]);
 
   if (isLoading) {
     return (
@@ -63,6 +79,22 @@ export function HeatmapViewer({
   const points = data?.data.points ?? [];
   const totalClicks = data?.data.totalClicks ?? 0;
   const uniqueSessions = data?.data.uniqueSessions ?? 0;
+  const refPageHeight = data?.data.pageHeight ?? 0;
+  const refViewportWidth = data?.data.viewportWidth || width;
+
+  // Visible area for the scroller (everything below the stats bar).
+  const visibleHeight = Math.max(200, height - 48);
+
+  // We render the iframe at the page's actual recorded height, scaled by
+  // the ratio of UI width to the recorded viewport width. This keeps the
+  // aspect ratio correct so heatmap dots line up with elements in the
+  // iframe across responsive breakpoints.
+  const scale = refViewportWidth > 0 ? width / refViewportWidth : 1;
+  const scaledPageHeight = refPageHeight > 0 ? Math.round(refPageHeight * scale) : 0;
+  const iframeHeight = Math.max(
+    MIN_IFRAME_HEIGHT,
+    Math.min(MAX_IFRAME_HEIGHT, scaledPageHeight || visibleHeight)
+  );
 
   return (
     <div className="flex flex-col h-full">
@@ -70,55 +102,68 @@ export function HeatmapViewer({
       <div className="flex items-center gap-4 px-4 py-2 bg-neutral-100 dark:bg-neutral-800 rounded-t-lg border-b border-neutral-200 dark:border-neutral-700">
         <div className="flex items-center gap-2 text-sm">
           <MousePointerClick className="w-4 h-4 text-neutral-500" />
-          <span className="font-medium text-neutral-900 dark:text-neutral-100">
-            {totalClicks.toLocaleString()}
-          </span>
+          <span className="font-medium text-neutral-900 dark:text-neutral-100">{totalClicks.toLocaleString()}</span>
           <span className="text-neutral-500 dark:text-neutral-400">clicks</span>
         </div>
         <div className="text-sm text-neutral-500 dark:text-neutral-400">
-          from <span className="font-medium text-neutral-700 dark:text-neutral-300">{uniqueSessions.toLocaleString()}</span> sessions
+          from{" "}
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">{uniqueSessions.toLocaleString()}</span>{" "}
+          sessions
         </div>
       </div>
 
-      {/* Heatmap visualization */}
-      <div className="flex-1 relative bg-white dark:bg-neutral-950 rounded-b-lg overflow-hidden">
-        {/* Iframe with page preview.
-            pointer-events enabled so the user can SCROLL inside the iframe
-            to view long pages. The HeatmapCanvas overlay above already has
-            pointer-events-none so heatmap dots stay non-blocking. */}
-        <iframe
-          src={pageUrl}
-          width={width}
-          height={height - 48}
-          className="w-full h-full"
-          style={{
-            opacity: iframeLoaded && !iframeError ? 1 : 0.3,
-          }}
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-          onLoad={() => setIframeLoaded(true)}
-          onError={() => setIframeError(true)}
-          title="Page Preview"
-        />
-
-        {/* Heatmap overlay */}
-        {points.length > 0 && (
-          <HeatmapCanvas
-            points={points}
-            width={width}
-            height={height - 48}
-            gridResolution={100}
-            radius={intensity.radius}
-            blur={intensity.blur}
-            maxOpacity={intensity.maxOpacity}
+      {/* Scrollable preview surface. The iframe is rendered tall enough to
+          fit the recorded page; the wrapper here is what actually scrolls.
+          The HeatmapCanvas overlay is positioned absolutely at the same
+          height as the iframe so dots scroll WITH the iframe content. */}
+      <div
+        ref={scrollerRef}
+        className="flex-1 relative bg-white dark:bg-neutral-950 rounded-b-lg overflow-y-auto overflow-x-hidden"
+        style={{ height: visibleHeight }}
+      >
+        <div className="relative" style={{ width: "100%", height: iframeHeight }}>
+          {/* pointer-events: none lets wheel events bubble up to the
+              wrapper so OUR scroll handles the page (the iframe itself
+              would otherwise capture them). Trade-off: clicks on links
+              inside the iframe are also disabled - acceptable for a
+              read-only preview. */}
+          <iframe
+            src={pageUrl}
+            className="absolute inset-0 w-full"
+            style={{
+              height: iframeHeight,
+              border: 0,
+              pointerEvents: "none",
+              opacity: iframeLoaded && !iframeError ? 1 : 0.3,
+            }}
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+            onLoad={() => setIframeLoaded(true)}
+            onError={() => setIframeError(true)}
+            title="Page Preview"
           />
-        )}
 
-        {/* No data overlay */}
+          {points.length > 0 && (
+            <HeatmapCanvas
+              points={points}
+              width={width}
+              height={iframeHeight}
+              gridResolution={100}
+              radius={intensity.radius}
+              blur={intensity.blur}
+              maxOpacity={intensity.maxOpacity}
+            />
+          )}
+        </div>
+
+        {/* No-data overlay (sticky inside the scroller so it stays
+            visible even after a stray scroll). */}
         {points.length === 0 && !isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-neutral-900/50">
             <div className="bg-white dark:bg-neutral-800 rounded-lg p-4 text-center shadow-lg">
               <MousePointerClick className="w-8 h-8 text-neutral-400 mx-auto mb-2" />
-              <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">No click data for this page</p>
+              <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                No click data for this page
+              </p>
               <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
                 Click data will appear once users interact with this page
               </p>
@@ -126,38 +171,18 @@ export function HeatmapViewer({
           </div>
         )}
 
-        {/* Loading overlay for iframe */}
         {!iframeLoaded && !iframeError && (
-          <div className="absolute inset-0 flex items-center justify-center bg-neutral-100 dark:bg-neutral-900">
+          <div className="absolute inset-0 flex items-center justify-center bg-neutral-100/80 dark:bg-neutral-900/80 pointer-events-none">
             <Loader2 className="w-8 h-8 animate-spin text-neutral-400" />
           </div>
         )}
 
-        {/* Error overlay for iframe */}
         {iframeError && (
-          <div className="absolute inset-0 flex items-center justify-center bg-neutral-100 dark:bg-neutral-900">
-            <div className="text-center">
-              <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                Unable to preview page
-              </p>
-              <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1">
-                The page may block iframe embedding
-              </p>
-              {/* Still show heatmap data even without page preview */}
-              {points.length > 0 && (
-                <div className="mt-4">
-                  <HeatmapCanvas
-            points={points}
-            width={width}
-            height={height - 48}
-            gridResolution={100}
-            radius={intensity.radius}
-            blur={intensity.blur}
-            maxOpacity={intensity.maxOpacity}
-          />
-                </div>
-              )}
-            </div>
+          <div className="absolute inset-x-0 top-0 p-3 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900 text-center pointer-events-none">
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              Unable to load page preview - the page may block iframe embedding (X-Frame-Options / CSP).
+              Heatmap dots are still rendered below.
+            </p>
           </div>
         )}
       </div>

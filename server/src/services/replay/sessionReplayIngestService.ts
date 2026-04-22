@@ -123,7 +123,8 @@ export class SessionReplayIngestService {
       siteId,
       sessionId,
       metadata?.viewportWidth || 0,
-      metadata?.viewportHeight || 0
+      metadata?.viewportHeight || 0,
+      metadata?.pageUrl
     );
 
     if (clicksToInsert.length > 0) {
@@ -141,15 +142,25 @@ export class SessionReplayIngestService {
   }
 
   /**
-   * Extract click events from rrweb events for heatmap storage
-   * rrweb IncrementalSnapshot (type 3) with source 2 (MouseInteraction) and type 2 (Click) or 4 (DblClick)
+   * Extract click events from rrweb events for heatmap storage.
+   *
+   * rrweb event taxonomy used here:
+   *  - type 4         Meta            data: { href, width, height }     -> URL change
+   *  - type 3 src 2   MouseInteraction data: { type, x, y, id }          -> click
+   *  - type 3 src 3   Scroll          data: { id, x, y }                 -> root scroll (id=1)
+   *
+   * For each click we attach the most recent scroll_y observed (pageY =
+   * y + scroll_y) and the current pathname (parsed from Meta href). This
+   * lets the heatmap UI render dots aligned with the actual page element
+   * even when the iframe is scrolled.
    */
   private extractClickEvents(
     events: Array<{ type: number | string; data: any; timestamp: number }>,
     siteId: number,
     sessionId: string,
     viewportWidth: number,
-    viewportHeight: number
+    viewportHeight: number,
+    initialPageUrl?: string
   ): Array<{
     site_id: number;
     session_id: string;
@@ -159,6 +170,9 @@ export class SessionReplayIngestService {
     viewport_width: number;
     viewport_height: number;
     click_type: number;
+    scroll_x: number;
+    scroll_y: number;
+    pathname: string;
   }> {
     const clicks: Array<{
       site_id: number;
@@ -169,6 +183,9 @@ export class SessionReplayIngestService {
       viewport_width: number;
       viewport_height: number;
       click_type: number;
+      scroll_x: number;
+      scroll_y: number;
+      pathname: string;
     }> = [];
 
     if (viewportWidth <= 0 || viewportHeight <= 0) {
@@ -178,25 +195,54 @@ export class SessionReplayIngestService {
       return clicks;
     }
 
-    for (const event of events) {
-      // Check if this is an IncrementalSnapshot (type 3)
-      if (event.type !== 3 && event.type !== "3") continue;
+    // Running state walked left-to-right through the event stream so we
+    // can attribute each click to the latest scroll position + pathname
+    // observed up to that moment.
+    let currentScrollX = 0;
+    let currentScrollY = 0;
+    let currentPathname = "";
+    if (initialPageUrl) {
+      try {
+        currentPathname = new URL(initialPageUrl).pathname || "/";
+      } catch {
+        // ignore - falls through to "" until we see a Meta event
+      }
+    }
 
+    for (const event of events) {
+      const eventType = typeof event.type === "string" ? Number(event.type) : event.type;
       const data = event.data;
       if (!data) continue;
 
-      // Check if this is a MouseInteraction (source 2)
-      if (data.source !== 2) continue;
+      // Meta (type 4) -> SPA navigation, refresh pathname for following clicks
+      if (eventType === 4) {
+        if (typeof data.href === "string") {
+          try {
+            currentPathname = new URL(data.href).pathname || "/";
+          } catch {
+            // keep previous
+          }
+        }
+        continue;
+      }
 
-      // Check if this is a Click (type 2) or DblClick (type 4)
-      // rrweb MouseInteractions enum: MouseUp=0, MouseDown=1, Click=2, ContextMenu=3, DblClick=4, Focus=5, Blur=6, TouchStart=7, etc.
+      if (eventType !== 3) continue;
+
+      // Scroll (source 3) on the root document (id=1 in rrweb). Some
+      // implementations also emit scroll for inner scrollable elements;
+      // we only care about the page-level one for heatmap alignment.
+      if (data.source === 3 && (data.id === 1 || data.id === undefined)) {
+        if (typeof data.x === "number") currentScrollX = data.x;
+        if (typeof data.y === "number") currentScrollY = data.y;
+        continue;
+      }
+
+      // MouseInteraction (source 2): Click (type 2) or DblClick (type 4)
+      if (data.source !== 2) continue;
       if (data.type !== 2 && data.type !== 4) continue;
 
-      // Extract coordinates
       const x = data.x;
       const y = data.y;
-
-      // Validate coordinates
       if (typeof x !== "number" || typeof y !== "number") continue;
       if (x < 0 || y < 0) continue;
 
@@ -209,6 +255,9 @@ export class SessionReplayIngestService {
         viewport_width: viewportWidth,
         viewport_height: viewportHeight,
         click_type: data.type,
+        scroll_x: Math.max(0, currentScrollX),
+        scroll_y: Math.max(0, currentScrollY),
+        pathname: currentPathname,
       });
     }
 

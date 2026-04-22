@@ -13,6 +13,13 @@ export interface ClickHeatmapResult {
   points: HeatmapDataPoint[];
   totalClicks: number;
   uniqueSessions: number;
+  /** Reference page height (px) used to normalize y. UI sizes its canvas
+   *  to this so dots align with elements when the iframe is scrolled. */
+  pageHeight: number;
+  /** Reference viewport width used to normalize x. */
+  viewportWidth: number;
+  /** Reference viewport height (px) - one fold. */
+  viewportHeight: number;
 }
 
 // Click heatmap response type
