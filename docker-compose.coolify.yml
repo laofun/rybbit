@@ -49,7 +49,7 @@ services:
       # to coolify network. Set SERVICE_FQDN_BACKEND env in Coolify UI to fix
       # the subdomain (e.g. https://api.analytics.lab.destini.vn), or leave
       # unset to let Coolify auto-generate one under the wildcard domain.
-      - SERVICE_FQDN_BACKEND_3001
+      - SERVICE_FQDN_BACKEND_3001=${SERVICE_FQDN_BACKEND:-}
       - NODE_ENV=production
       - CLICKHOUSE_HOST=http://rybbit-clickhouse:8123
       - CLICKHOUSE_DB=${CLICKHOUSE_DB:-analytics}
@@ -89,7 +89,7 @@ services:
       # Coolify magic var: generates Traefik labels for port 3002. Set
       # SERVICE_FQDN_CLIENT in Coolify UI to fix the main domain
       # (e.g. https://analytics.lab.destini.vn).
-      - SERVICE_FQDN_CLIENT_3002
+      - SERVICE_FQDN_CLIENT_3002=${SERVICE_FQDN_CLIENT:-}
       - NODE_ENV=production
       - NEXT_PUBLIC_BACKEND_URL=${NEXT_PUBLIC_BACKEND_URL:-${BASE_URL}}
       - NEXT_PUBLIC_DISABLE_SIGNUP=${DISABLE_SIGNUP:-false}
