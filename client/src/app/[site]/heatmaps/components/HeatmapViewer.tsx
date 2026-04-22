@@ -83,7 +83,7 @@ export function HeatmapViewer({ pathname, baseUrl, viewportBreakpoint, width, he
             pointerEvents: "none",
             opacity: iframeLoaded && !iframeError ? 1 : 0.3,
           }}
-          sandbox="allow-same-origin"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
           onLoad={() => setIframeLoaded(true)}
           onError={() => setIframeError(true)}
           title="Page Preview"
