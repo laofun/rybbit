@@ -18,10 +18,10 @@ services:
       - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-frog}
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8123/ping"]
-      interval: 3s
+      interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 20s
     restart: unless-stopped
 
   postgres:
@@ -34,10 +34,10 @@ services:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 3s
+      interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 20s
     restart: unless-stopped
 
   backend:
@@ -60,20 +60,20 @@ services:
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
       - BASE_URL=${BASE_URL}
       - DOMAIN_NAME=${DOMAIN_NAME}
-      - DISABLE_SIGNUP=${DISABLE_SIGNUP}
-      - DISABLE_TELEMETRY=${DISABLE_TELEMETRY}
-      - MAPBOX_TOKEN=${MAPBOX_TOKEN}
+      - DISABLE_SIGNUP=${DISABLE_SIGNUP:-false}
+      - DISABLE_TELEMETRY=${DISABLE_TELEMETRY:-true}
+      - MAPBOX_TOKEN=${MAPBOX_TOKEN:-}
     depends_on:
       clickhouse:
         condition: service_healthy
       postgres:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3001/api/health"]
-      interval: 3s
+      interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 30s
     restart: unless-stopped
 
   client:
@@ -82,17 +82,24 @@ services:
       dockerfile: ./client/Dockerfile
       args:
         NEXT_PUBLIC_BACKEND_URL: ${BASE_URL}
-        NEXT_PUBLIC_DISABLE_SIGNUP: ${DISABLE_SIGNUP}
+        NEXT_PUBLIC_DISABLE_SIGNUP: ${DISABLE_SIGNUP:-false}
     networks:
       - default
       - coolify
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_BACKEND_URL=${BASE_URL}
-      - NEXT_PUBLIC_DISABLE_SIGNUP=${DISABLE_SIGNUP}
+      - NEXT_PUBLIC_DISABLE_SIGNUP=${DISABLE_SIGNUP:-false}
       - DOMAIN_NAME=${DOMAIN_NAME}
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3002"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
 
 networks:
