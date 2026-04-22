@@ -44,29 +44,6 @@ services:
     build:
       context: .
       dockerfile: ./server/Dockerfile
-    networks:
-      - default
-      - coolify
-    labels:
-      # Manual Traefik labels (override Coolify auto-gen) to avoid StripPrefix
-      # on /api - rybbit backend routes are registered with the /api prefix
-      # and need X-Forwarded-* headers for Better-Auth cookies + OAuth.
-      - traefik.enable=true
-      - traefik.docker.network=coolify
-      - traefik.http.routers.rybbit-backend.entrypoints=https
-      - traefik.http.routers.rybbit-backend.tls=true
-      - traefik.http.routers.rybbit-backend.tls.certresolver=letsencrypt
-      - "traefik.http.routers.rybbit-backend.rule=Host(`${DOMAIN_NAME}`) && (Path(`/api`) || PathPrefix(`/api/`))"
-      - traefik.http.routers.rybbit-backend.priority=100
-      - traefik.http.services.rybbit-backend.loadbalancer.server.port=3001
-      - traefik.http.middlewares.rybbit-forward-headers.headers.customrequestheaders.X-Forwarded-Proto=https
-      - traefik.http.middlewares.rybbit-forward-headers.headers.customrequestheaders.X-Forwarded-Host=${DOMAIN_NAME}
-      - traefik.http.routers.rybbit-backend.middlewares=rybbit-forward-headers
-      # HTTP -> HTTPS redirect
-      - traefik.http.routers.rybbit-backend-http.entrypoints=http
-      - "traefik.http.routers.rybbit-backend-http.rule=Host(`${DOMAIN_NAME}`) && (Path(`/api`) || PathPrefix(`/api/`))"
-      - traefik.http.routers.rybbit-backend-http.middlewares=redirect-to-https
-      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
     environment:
       - NODE_ENV=production
       - CLICKHOUSE_HOST=http://rybbit-clickhouse:8123
@@ -101,27 +78,11 @@ services:
       context: .
       dockerfile: ./client/Dockerfile
       args:
-        NEXT_PUBLIC_BACKEND_URL: ${BASE_URL}
+        NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-${BASE_URL}}
         NEXT_PUBLIC_DISABLE_SIGNUP: ${DISABLE_SIGNUP:-false}
-    networks:
-      - default
-      - coolify
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=coolify
-      - traefik.http.routers.rybbit-client.entrypoints=https
-      - traefik.http.routers.rybbit-client.tls=true
-      - traefik.http.routers.rybbit-client.tls.certresolver=letsencrypt
-      - "traefik.http.routers.rybbit-client.rule=Host(`${DOMAIN_NAME}`)"
-      - traefik.http.routers.rybbit-client.priority=10
-      - traefik.http.services.rybbit-client.loadbalancer.server.port=3002
-      # HTTP -> HTTPS redirect
-      - traefik.http.routers.rybbit-client-http.entrypoints=http
-      - "traefik.http.routers.rybbit-client-http.rule=Host(`${DOMAIN_NAME}`)"
-      - traefik.http.routers.rybbit-client-http.middlewares=redirect-to-https
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_BACKEND_URL=${BASE_URL}
+      - NEXT_PUBLIC_BACKEND_URL=${NEXT_PUBLIC_BACKEND_URL:-${BASE_URL}}
       - NEXT_PUBLIC_DISABLE_SIGNUP=${DISABLE_SIGNUP:-false}
       - DOMAIN_NAME=${DOMAIN_NAME}
     depends_on:
@@ -134,10 +95,6 @@ services:
       retries: 5
       start_period: 30s
     restart: unless-stopped
-
-networks:
-  coolify:
-    external: true
 
 volumes:
   clickhouse-data:
