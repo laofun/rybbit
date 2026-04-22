@@ -1,17 +1,20 @@
 # Rybbit fork - Coolify Docker Compose Build Pack deployment.
 #
-# This compose intentionally has NO Traefik labels and NO SERVICE_FQDN_*
-# magic vars. Per Coolify docs, the recommended way is to set the Domain
-# field per-service in the Coolify UI:
-#   - client  service: https://<your-domain>:3002
-#   - backend service: https://<your-api-domain>:3001
-# Use SUBDOMAIN routing (separate subdomain for backend) - avoids the
-# StripPrefix middleware Coolify auto-adds on path-based domains.
+# DOMAIN CONFIGURATION (single domain, path-based routing per Rybbit official):
 #
-# Coolify auto-generates Traefik labels, attaches the coolify network,
-# and obtains certs from the Domain field values. Wildcard domain on the
-# server (e.g. *.lab.destini.vn) is honored - any single-level subdomain
-# under the wildcard reuses the wildcard cert.
+# 1. Set the Domain field in Coolify UI ONLY for the `client` service:
+#       https://<your-domain>:3002
+#    Leave the Domain field EMPTY for `backend` (manual labels handle it).
+#
+# 2. EDIT the hardcoded `RYBBIT_DOMAIN` value in the backend labels below
+#    to match your domain. Coolify does NOT substitute ${VAR} in compose
+#    labels, so the domain must be hardcoded here. Replace
+#    `analytics.lab.destini.vn` with your actual domain.
+#
+# 3. Backend serves /api/* on the SAME domain as client. No StripPrefix
+#    (Rybbit's Fastify routes are registered with /api prefix). Cookies
+#    work cross-route since same origin. Single Let's Encrypt cert covers
+#    both client (/) and backend (/api).
 services:
   rybbit-clickhouse:
     image: clickhouse/clickhouse-server:25.4.2
@@ -86,17 +89,40 @@ services:
       retries: 5
       start_period: 30s
     restart: unless-stopped
+    labels:
+      # Manual Traefik labels (HARDCODED domain - edit if you fork).
+      # Coolify does not substitute ${VAR} in compose labels, so we cannot
+      # use ${DOMAIN_NAME} here. Set Domain field EMPTY in Coolify UI for
+      # this service so Coolify does not auto-gen conflicting labels.
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.rybbit-backend.entrypoints=https
+      - traefik.http.routers.rybbit-backend.tls=true
+      - traefik.http.routers.rybbit-backend.tls.certresolver=letsencrypt
+      - "traefik.http.routers.rybbit-backend.rule=Host(`analytics.lab.destini.vn`) && (Path(`/api`) || PathPrefix(`/api/`))"
+      - traefik.http.routers.rybbit-backend.priority=100
+      - traefik.http.services.rybbit-backend.loadbalancer.server.port=3001
+      - traefik.http.middlewares.rybbit-fwh.headers.customrequestheaders.X-Forwarded-Proto=https
+      - traefik.http.middlewares.rybbit-fwh.headers.customrequestheaders.X-Forwarded-Host=analytics.lab.destini.vn
+      - traefik.http.routers.rybbit-backend.middlewares=rybbit-fwh
+      # HTTP -> HTTPS redirect for /api
+      - traefik.http.routers.rybbit-backend-http.entrypoints=http
+      - "traefik.http.routers.rybbit-backend-http.rule=Host(`analytics.lab.destini.vn`) && (Path(`/api`) || PathPrefix(`/api/`))"
+      - traefik.http.middlewares.rybbit-redirect.redirectscheme.scheme=https
+      - traefik.http.routers.rybbit-backend-http.middlewares=rybbit-redirect
 
   client:
     build:
       context: .
       dockerfile: ./client/Dockerfile
       args:
-        NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-${BASE_URL}}
+        # Single-domain pattern: client calls backend on the same origin
+        # via /api path (Rybbit Fastify routes preserve the /api prefix).
+        NEXT_PUBLIC_BACKEND_URL: ${BASE_URL}
         NEXT_PUBLIC_DISABLE_SIGNUP: ${DISABLE_SIGNUP:-false}
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_BACKEND_URL=${NEXT_PUBLIC_BACKEND_URL:-${BASE_URL}}
+      - NEXT_PUBLIC_BACKEND_URL=${BASE_URL}
       - NEXT_PUBLIC_DISABLE_SIGNUP=${DISABLE_SIGNUP:-false}
       - DOMAIN_NAME=${DOMAIN_NAME}
     depends_on:
