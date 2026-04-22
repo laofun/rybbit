@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { useGetClickHeatmap } from "../../../../api/analytics/hooks/heatmap/useGetClickHeatmap";
 import { HeatmapCanvas } from "../../../../components/heatmap/HeatmapCanvas";
 import { ViewportBreakpoint } from "../../../../api/analytics/endpoints/heatmap";
+import { HeatmapIntensity, DEFAULT_INTENSITY } from "./HeatmapControls";
 
 interface HeatmapViewerProps {
   pathname: string;
@@ -12,9 +13,17 @@ interface HeatmapViewerProps {
   viewportBreakpoint: ViewportBreakpoint;
   width: number;
   height: number;
+  intensity?: HeatmapIntensity;
 }
 
-export function HeatmapViewer({ pathname, baseUrl, viewportBreakpoint, width, height }: HeatmapViewerProps) {
+export function HeatmapViewer({
+  pathname,
+  baseUrl,
+  viewportBreakpoint,
+  width,
+  height,
+  intensity = DEFAULT_INTENSITY,
+}: HeatmapViewerProps) {
   const { data, isLoading, error } = useGetClickHeatmap({
     pathname,
     viewportBreakpoint,
@@ -93,7 +102,15 @@ export function HeatmapViewer({ pathname, baseUrl, viewportBreakpoint, width, he
 
         {/* Heatmap overlay */}
         {points.length > 0 && (
-          <HeatmapCanvas points={points} width={width} height={height - 48} gridResolution={100} />
+          <HeatmapCanvas
+            points={points}
+            width={width}
+            height={height - 48}
+            gridResolution={100}
+            radius={intensity.radius}
+            blur={intensity.blur}
+            maxOpacity={intensity.maxOpacity}
+          />
         )}
 
         {/* No data overlay */}
@@ -129,7 +146,15 @@ export function HeatmapViewer({ pathname, baseUrl, viewportBreakpoint, width, he
               {/* Still show heatmap data even without page preview */}
               {points.length > 0 && (
                 <div className="mt-4">
-                  <HeatmapCanvas points={points} width={width} height={height - 48} gridResolution={100} />
+                  <HeatmapCanvas
+            points={points}
+            width={width}
+            height={height - 48}
+            gridResolution={100}
+            radius={intensity.radius}
+            blur={intensity.blur}
+            maxOpacity={intensity.maxOpacity}
+          />
                 </div>
               )}
             </div>

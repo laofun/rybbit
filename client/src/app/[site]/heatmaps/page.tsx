@@ -10,7 +10,7 @@ import { NothingFound } from "../../../components/NothingFound";
 import { useSetPageTitle } from "../../../hooks/useSetPageTitle";
 import { useStore } from "../../../lib/store";
 import { SubHeader } from "../components/SubHeader/SubHeader";
-import { HeatmapControls } from "./components/HeatmapControls";
+import { DEFAULT_INTENSITY, HeatmapControls, HeatmapIntensity } from "./components/HeatmapControls";
 import { HeatmapPageList } from "./components/HeatmapPageList";
 import { HeatmapViewer } from "./components/HeatmapViewer";
 
@@ -23,6 +23,7 @@ export default function HeatmapsPage() {
 
   const [selectedPathname, setSelectedPathname] = useState<string | null>(null);
   const [viewportBreakpoint, setViewportBreakpoint] = useState<ViewportBreakpoint>("all");
+  const [intensity, setIntensity] = useState<HeatmapIntensity>(DEFAULT_INTENSITY);
 
   const [ref, { width: containerWidth }] = useMeasure();
   const { height: windowHeight } = useWindowSize();
@@ -43,7 +44,12 @@ export default function HeatmapsPage() {
       {/* Controls bar */}
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Click Heatmaps</h1>
-        <HeatmapControls viewportBreakpoint={viewportBreakpoint} onViewportChange={setViewportBreakpoint} />
+        <HeatmapControls
+          viewportBreakpoint={viewportBreakpoint}
+          onViewportChange={setViewportBreakpoint}
+          intensity={intensity}
+          onIntensityChange={setIntensity}
+        />
       </div>
 
       {hasNoPages ? (
@@ -76,6 +82,7 @@ export default function HeatmapsPage() {
                 viewportBreakpoint={viewportBreakpoint}
                 width={containerWidth}
                 height={windowHeight - 180}
+                intensity={intensity}
               />
             ) : (
               <div className="flex items-center justify-center h-full text-neutral-500 dark:text-neutral-400">
