@@ -353,8 +353,11 @@
         events,
         metadata: {
           pageUrl: window.location.href,
-          viewportWidth: screen.width,
-          viewportHeight: screen.height,
+          // Browser viewport (matches rrweb's clientX/clientY basis), NOT
+          // screen.width/height — those report the physical monitor size
+          // and break heatmap x-normalization on windowed browsers.
+          viewportWidth: window.innerWidth || document.documentElement.clientWidth,
+          viewportHeight: window.innerHeight || document.documentElement.clientHeight,
           language: navigator.language
         }
       };
