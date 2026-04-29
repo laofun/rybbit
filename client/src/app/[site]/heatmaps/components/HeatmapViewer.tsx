@@ -115,6 +115,15 @@ export function HeatmapViewer({
   const renderedHeight = Math.max(visibleHeight + 100, Math.round(iframeNaturalHeight * scale));
   const iframeNaturalWidth = refViewportWidth || width;
 
+  // Canvas overlay must use the SAME y-normalization basis the server
+  // used (refPageHeight). The iframe can be taller (legacy fallback to
+  // MIN_IFRAME_HEIGHT for scrollability), but dots are placed as a
+  // fraction of refPageHeight, so the canvas only spans that region.
+  // Without this the canvas stretches over the whole iframe and dots
+  // drift downward proportionally to (iframeNaturalHeight / pageHeight).
+  const heatmapHeight =
+    refPageHeight > 0 ? Math.max(1, Math.round(refPageHeight * scale)) : renderedHeight;
+
   return (
     <div className="flex flex-col h-full">
       {/* Stats bar */}
@@ -172,7 +181,7 @@ export function HeatmapViewer({
             <HeatmapCanvas
               points={points}
               width={width}
-              height={renderedHeight}
+              height={heatmapHeight}
               gridResolution={100}
               radius={intensity.radius}
               blur={intensity.blur}
