@@ -9,7 +9,6 @@ import { useExtracted } from "next-intl";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { RybbitTextLogo } from "../../components/RybbitLogo";
 import { SpinningGlobe } from "../../components/SpinningGlobe";
 import { useSetPageTitle } from "../../hooks/useSetPageTitle";
 import { authClient } from "../../lib/auth";
@@ -77,11 +76,11 @@ export default function Page() {
     <div className="flex h-dvh w-full">
       {/* Left panel - login form */}
       <div className="w-full lg:w-[550px] flex flex-col p-6 lg:p-10">
-        {/* Logo at top left */}
+        {/* Brand at top left */}
         <div className="mb-8">
-          <a href="https://rybbit.com" target="_blank" className="inline-block">
-            <RybbitTextLogo />
-          </a>
+          <span className="inline-block text-xl font-semibold text-neutral-900 dark:text-neutral-100">
+            Atomic Vietnam
+          </span>
         </div>
         <div className="flex-1 flex flex-col justify-center w-full max-w-[550px] mx-auto">
           <h1 className="text-lg text-neutral-600 dark:text-neutral-300 mb-6">{t("Welcome back")}</h1>
@@ -153,14 +152,7 @@ export default function Page() {
 
         {!IS_CLOUD && (
           <div className="text-xs text-muted-foreground mt-8">
-            <a
-              href="https://rybbit.com"
-              target="_blank"
-              rel="noopener"
-              title="Rybbit - Open Source Privacy-Focused Web Analytics"
-            >
-              {t("Open source web analytics powered by Rybbit")}
-            </a>
+            Atomic Vietnam
           </div>
         )}
       </div>
