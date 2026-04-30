@@ -8,10 +8,15 @@ and how risky each one is.
 
 ```
 master                   ← mirror of upstream/master, only fast-forward merges
-heatmaps-integration     ← production branch = master + the patches below
+heatmaps-integration     ← integration/dev branch = master + the patches below
+deploy                   ← what Coolify watches; auto-deploys on push
 ```
 
-Sync recipe:
+`heatmaps-integration` is where development and upstream syncs happen.
+`deploy` is fast-forwarded from `heatmaps-integration` once a build is verified —
+Coolify is configured to watch `deploy` and rebuild on every push to it.
+
+Sync recipe (upstream → integration):
 
 ```bash
 git fetch upstream
@@ -20,8 +25,27 @@ git checkout heatmaps-integration && git rebase master
 # resolve conflicts (use the table below to know where to look), then
 cd client && npm install && npx tsc --noEmit
 cd server && npm install && npx tsc --noEmit
-cd server && npm run build:analytics       # regenerates public/script*.js
+cd server && npm run build:analytics       # regenerates public/script*.js, commit if changed
 git push --force-with-lease origin heatmaps-integration
+git push origin master
+```
+
+Release recipe (integration → deploy, triggers Coolify build):
+
+```bash
+git checkout deploy
+git merge --ff-only heatmaps-integration
+git push origin deploy
+```
+
+If a fast-forward isn't possible (e.g. an upstream sync rewrote history),
+hard-reset deploy to integration only after confirming integration is what
+you want live:
+
+```bash
+git checkout deploy
+git reset --hard heatmaps-integration
+git push --force-with-lease origin deploy
 ```
 
 ## Patch inventory
