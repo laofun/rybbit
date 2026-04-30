@@ -5,7 +5,7 @@ import { Flame } from "lucide-react";
 import { useState } from "react";
 import { useGetSite } from "../../../api/admin/hooks/useSites";
 import { useGetHeatmapPages } from "../../../api/analytics/hooks/heatmap/useGetHeatmapPages";
-import { ViewportBreakpoint } from "../../../api/analytics/endpoints/heatmap";
+import { HeatmapMode, ViewportBreakpoint } from "../../../api/analytics/endpoints/heatmap";
 import { NothingFound } from "../../../components/NothingFound";
 import { useSetPageTitle } from "../../../hooks/useSetPageTitle";
 import { useStore } from "../../../lib/store";
@@ -24,6 +24,7 @@ export default function HeatmapsPage() {
   const [selectedPathname, setSelectedPathname] = useState<string | null>(null);
   const [viewportBreakpoint, setViewportBreakpoint] = useState<ViewportBreakpoint>("all");
   const [intensity, setIntensity] = useState<HeatmapIntensity>(DEFAULT_INTENSITY);
+  const [mode, setMode] = useState<HeatmapMode>("all");
 
   const [ref, { width: containerWidth }] = useMeasure();
   const { height: windowHeight } = useWindowSize();
@@ -45,6 +46,8 @@ export default function HeatmapsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Click Heatmaps</h1>
         <HeatmapControls
+          mode={mode}
+          onModeChange={setMode}
           viewportBreakpoint={viewportBreakpoint}
           onViewportChange={setViewportBreakpoint}
           intensity={intensity}
@@ -83,6 +86,7 @@ export default function HeatmapsPage() {
                 width={containerWidth}
                 height={windowHeight - 180}
                 intensity={intensity}
+                mode={mode}
               />
             ) : (
               <div className="flex items-center justify-center h-full text-neutral-500 dark:text-neutral-400">

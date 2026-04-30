@@ -22,10 +22,13 @@ export interface ClickHeatmapResult {
   viewportHeight: number;
 }
 
+export type HeatmapMode = "all" | "rage";
+
 // Click heatmap response type
 export interface ClickHeatmapResponse {
   data: ClickHeatmapResult;
   pathname: string;
+  mode: HeatmapMode;
 }
 
 // Heatmap page type
@@ -48,6 +51,7 @@ export interface ClickHeatmapParams extends CommonApiParams {
   pathname: string;
   viewportBreakpoint?: ViewportBreakpoint;
   gridResolution?: number;
+  mode?: HeatmapMode;
 }
 
 // Heatmap pages params
@@ -68,6 +72,7 @@ export async function fetchClickHeatmap(
     pathname: params.pathname,
     viewportBreakpoint: params.viewportBreakpoint,
     gridResolution: params.gridResolution,
+    mode: params.mode,
   };
 
   return authedFetch<ClickHeatmapResponse>(`/sites/${site}/heatmap/clicks`, queryParams);

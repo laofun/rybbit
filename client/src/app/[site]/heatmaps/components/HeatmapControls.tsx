@@ -1,7 +1,7 @@
 "use client";
 
-import { Monitor, RotateCcw, Smartphone, Tablet } from "lucide-react";
-import { ViewportBreakpoint } from "../../../../api/analytics/endpoints/heatmap";
+import { Flame, Monitor, MousePointerClick, RotateCcw, Smartphone, Tablet } from "lucide-react";
+import { HeatmapMode, ViewportBreakpoint } from "../../../../api/analytics/endpoints/heatmap";
 import { cn } from "../../../../lib/utils";
 
 export interface HeatmapIntensity {
@@ -17,6 +17,8 @@ export const DEFAULT_INTENSITY: HeatmapIntensity = {
 };
 
 interface HeatmapControlsProps {
+  mode: HeatmapMode;
+  onModeChange: (mode: HeatmapMode) => void;
   viewportBreakpoint: ViewportBreakpoint;
   onViewportChange: (breakpoint: ViewportBreakpoint) => void;
   intensity: HeatmapIntensity;
@@ -28,6 +30,21 @@ const VIEWPORT_OPTIONS: { value: ViewportBreakpoint; label: string; icon: React.
   { value: "desktop", label: "Desktop", icon: <Monitor className="w-4 h-4" /> },
   { value: "tablet", label: "Tablet", icon: <Tablet className="w-4 h-4" /> },
   { value: "mobile", label: "Mobile", icon: <Smartphone className="w-4 h-4" /> },
+];
+
+const MODE_OPTIONS: { value: HeatmapMode; label: string; icon: React.ReactNode; tip: string }[] = [
+  {
+    value: "all",
+    label: "All clicks",
+    icon: <MousePointerClick className="w-4 h-4" />,
+    tip: "Every recorded click",
+  },
+  {
+    value: "rage",
+    label: "Rage clicks",
+    icon: <Flame className="w-4 h-4" />,
+    tip: "3+ clicks within 50px in 1.5s — likely user frustration",
+  },
 ];
 
 interface SliderProps {
@@ -61,6 +78,8 @@ function Slider({ label, value, min, max, step, onChange, format }: SliderProps)
 }
 
 export function HeatmapControls({
+  mode,
+  onModeChange,
   viewportBreakpoint,
   onViewportChange,
   intensity,
@@ -73,6 +92,28 @@ export function HeatmapControls({
 
   return (
     <div className="flex flex-wrap items-center gap-3">
+      {/* Mode toggle */}
+      <div className="flex items-center bg-neutral-100 dark:bg-neutral-800 rounded-lg p-0.5">
+        {MODE_OPTIONS.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={mode === option.value}
+            title={option.tip}
+            onClick={() => onModeChange(option.value)}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors",
+              mode === option.value
+                ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-neutral-100 shadow-sm"
+                : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200"
+            )}
+          >
+            {option.icon}
+            {option.label}
+          </button>
+        ))}
+      </div>
+
       {/* Viewport toggle */}
       <div className="flex items-center gap-2">
         <span className="text-sm text-neutral-500 dark:text-neutral-400">Viewport:</span>

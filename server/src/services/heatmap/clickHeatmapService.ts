@@ -203,6 +203,167 @@ export class ClickHeatmapService {
   }
 
   /**
+   * Get rage-click hotspots: clusters of 3+ clicks within 50px in 1.5s
+   * inside the same session. The result reuses ClickHeatmapResult so the
+   * UI can render it through the same canvas. Each grid cell value is
+   * the number of distinct rage incidents (one per session per cluster),
+   * not raw click count.
+   */
+  async getRageClicks(
+    siteId: number,
+    pathname: string,
+    options: FilterParams<{
+      viewportBreakpoint?: ViewportBreakpoint;
+      gridResolution?: number;
+    }>
+  ): Promise<ClickHeatmapResult> {
+    const { viewportBreakpoint = "all", gridResolution = 100 } = options;
+
+    const timeStatement = getTimeStatement(options).replace(/timestamp/g, "src.timestamp");
+    const viewportCondition = getViewportCondition(viewportBreakpoint).replace(
+      /viewport_width/g,
+      "src.viewport_width"
+    );
+
+    const cleanPathname = pathname.replace(/\/+$/, "") || "/";
+
+    // Reference dimensions identical to getClickHeatmap so canvas sizing
+    // matches up if the user toggles between modes.
+    const dimsQuery = `
+      SELECT
+        toUInt32(max(src.y + src.scroll_y)) AS pageHeight,
+        toUInt16(any(src.viewport_width))   AS viewportWidth,
+        toUInt16(any(src.viewport_height))  AS viewportHeight
+      FROM session_replay_clicks src
+      INNER JOIN session_replay_metadata srm
+        ON src.session_id = srm.session_id AND src.site_id = srm.site_id
+      WHERE src.site_id = {siteId:UInt16}
+        AND src.viewport_width > 0
+        AND src.viewport_height > 0
+        AND (src.pathname = {pathname:String}
+             OR (src.pathname = '' AND path(srm.page_url) = {pathname:String}))
+        ${viewportCondition}
+        ${timeStatement}
+    `;
+
+    const dimsResult = await clickhouse.query({
+      query: dimsQuery,
+      query_params: { siteId, pathname: cleanPathname },
+      format: "JSONEachRow",
+    });
+    const dimsRows = await processResults<{
+      pageHeight: number;
+      viewportWidth: number;
+      viewportHeight: number;
+    }>(dimsResult);
+    const dims = dimsRows[0] ?? { pageHeight: 0, viewportWidth: 0, viewportHeight: 0 };
+
+    if (!dims.pageHeight) {
+      return {
+        points: [],
+        totalClicks: 0,
+        uniqueSessions: 0,
+        pageHeight: dims.viewportHeight || 0,
+        viewportWidth: dims.viewportWidth || 0,
+        viewportHeight: dims.viewportHeight || 0,
+      };
+    }
+
+    const pageHeight = Math.max(dims.pageHeight, dims.viewportHeight || 1);
+
+    // CTE clusters clicks per session into 50x50 px buckets in absolute
+    // page coordinates, keeps clusters with >= 3 clicks within 1500ms.
+    // The outer query renormalizes the cluster centroids onto the same
+    // grid the regular click heatmap uses so the UI can swap modes
+    // without changing canvas math.
+    const query = `
+      WITH rage_incidents AS (
+        SELECT
+          src.session_id AS session_id,
+          toUInt32(src.x / 50)                     AS gx,
+          toUInt32((src.y + src.scroll_y) / 50)    AS gy,
+          count()                                  AS click_count,
+          dateDiff('millisecond', min(src.timestamp), max(src.timestamp)) AS time_span_ms,
+          avg(src.x)                               AS avg_x,
+          avg(src.y + src.scroll_y)                AS avg_page_y,
+          any(src.viewport_width)                  AS vw
+        FROM session_replay_clicks src
+        INNER JOIN session_replay_metadata srm
+          ON src.session_id = srm.session_id AND src.site_id = srm.site_id
+        WHERE src.site_id = {siteId:UInt16}
+          AND src.viewport_width > 0
+          AND src.viewport_height > 0
+          AND src.x >= 0 AND src.y >= 0
+          AND src.x <= src.viewport_width
+          AND src.y <= src.viewport_height
+          AND (src.pathname = {pathname:String}
+               OR (src.pathname = '' AND path(srm.page_url) = {pathname:String}))
+          ${viewportCondition}
+          ${timeStatement}
+        GROUP BY src.session_id, gx, gy
+        HAVING click_count >= 3 AND time_span_ms <= 1500 AND vw > 0
+      )
+      SELECT
+        ROUND(avg_x / vw * {gridResolution:UInt16}, 0)              AS x,
+        ROUND(avg_page_y / {pageHeight:UInt32} * {gridResolution:UInt16}, 0) AS y,
+        count()                                                     AS value
+      FROM rage_incidents
+      GROUP BY x, y
+      HAVING value >= 1
+      ORDER BY value DESC
+      LIMIT 10000
+    `;
+
+    const statsQuery = `
+      WITH rage_incidents AS (
+        SELECT src.session_id AS session_id
+        FROM session_replay_clicks src
+        INNER JOIN session_replay_metadata srm
+          ON src.session_id = srm.session_id AND src.site_id = srm.site_id
+        WHERE src.site_id = {siteId:UInt16}
+          AND src.viewport_width > 0
+          AND src.viewport_height > 0
+          AND (src.pathname = {pathname:String}
+               OR (src.pathname = '' AND path(srm.page_url) = {pathname:String}))
+          ${viewportCondition}
+          ${timeStatement}
+        GROUP BY src.session_id, toUInt32(src.x / 50), toUInt32((src.y + src.scroll_y) / 50)
+        HAVING count() >= 3
+           AND dateDiff('millisecond', min(src.timestamp), max(src.timestamp)) <= 1500
+      )
+      SELECT
+        count()                          AS totalClicks,
+        count(DISTINCT session_id)       AS uniqueSessions
+      FROM rage_incidents
+    `;
+
+    const [pointsResult, statsResult] = await Promise.all([
+      clickhouse.query({
+        query,
+        query_params: { siteId, pathname: cleanPathname, gridResolution, pageHeight },
+        format: "JSONEachRow",
+      }),
+      clickhouse.query({
+        query: statsQuery,
+        query_params: { siteId, pathname: cleanPathname },
+        format: "JSONEachRow",
+      }),
+    ]);
+
+    const points = await processResults<HeatmapDataPoint>(pointsResult);
+    const stats = await processResults<{ totalClicks: number; uniqueSessions: number }>(statsResult);
+
+    return {
+      points,
+      totalClicks: stats[0]?.totalClicks ?? 0,
+      uniqueSessions: stats[0]?.uniqueSessions ?? 0,
+      pageHeight,
+      viewportWidth: dims.viewportWidth,
+      viewportHeight: dims.viewportHeight,
+    };
+  }
+
+  /**
    * Get list of pages that have click data for heatmaps. Pages are
    * resolved from src.pathname when present (covers SPA route changes
    * after the session started) and fall back to session metadata.

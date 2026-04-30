@@ -1,10 +1,10 @@
 "use client";
 
-import { Loader2, MousePointerClick } from "lucide-react";
+import { Flame, Loader2, MousePointerClick } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useGetClickHeatmap } from "../../../../api/analytics/hooks/heatmap/useGetClickHeatmap";
 import { HeatmapCanvas } from "../../../../components/heatmap/HeatmapCanvas";
-import { ViewportBreakpoint } from "../../../../api/analytics/endpoints/heatmap";
+import { HeatmapMode, ViewportBreakpoint } from "../../../../api/analytics/endpoints/heatmap";
 import { HeatmapIntensity, DEFAULT_INTENSITY } from "./HeatmapControls";
 
 interface HeatmapViewerProps {
@@ -14,6 +14,7 @@ interface HeatmapViewerProps {
   width: number;
   height: number;
   intensity?: HeatmapIntensity;
+  mode?: HeatmapMode;
 }
 
 /** Floor for iframe height. Pages with no recorded scroll data (legacy
@@ -35,12 +36,16 @@ export function HeatmapViewer({
   width,
   height,
   intensity = DEFAULT_INTENSITY,
+  mode = "all",
 }: HeatmapViewerProps) {
   const { data, isLoading, error } = useGetClickHeatmap({
     pathname,
     viewportBreakpoint,
     gridResolution: 100,
+    mode,
   });
+
+  const isRage = mode === "rage";
 
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [iframeError, setIframeError] = useState(false);
@@ -129,9 +134,13 @@ export function HeatmapViewer({
       {/* Stats bar */}
       <div className="flex items-center gap-4 px-4 py-2 bg-neutral-100 dark:bg-neutral-800 rounded-t-lg border-b border-neutral-200 dark:border-neutral-700">
         <div className="flex items-center gap-2 text-sm">
-          <MousePointerClick className="w-4 h-4 text-neutral-500" />
+          {isRage ? (
+            <Flame className="w-4 h-4 text-orange-500" />
+          ) : (
+            <MousePointerClick className="w-4 h-4 text-neutral-500" />
+          )}
           <span className="font-medium text-neutral-900 dark:text-neutral-100">{totalClicks.toLocaleString()}</span>
-          <span className="text-neutral-500 dark:text-neutral-400">clicks</span>
+          <span className="text-neutral-500 dark:text-neutral-400">{isRage ? "rage clusters" : "clicks"}</span>
         </div>
         <div className="text-sm text-neutral-500 dark:text-neutral-400">
           from{" "}
@@ -186,6 +195,7 @@ export function HeatmapViewer({
               radius={intensity.radius}
               blur={intensity.blur}
               maxOpacity={intensity.maxOpacity}
+              palette={isRage ? "rage" : "spectrum"}
             />
           )}
         </div>
@@ -195,12 +205,18 @@ export function HeatmapViewer({
         {points.length === 0 && !isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-neutral-900/50">
             <div className="bg-white dark:bg-neutral-800 rounded-lg p-4 text-center shadow-lg">
-              <MousePointerClick className="w-8 h-8 text-neutral-400 mx-auto mb-2" />
+              {isRage ? (
+                <Flame className="w-8 h-8 text-orange-400 mx-auto mb-2" />
+              ) : (
+                <MousePointerClick className="w-8 h-8 text-neutral-400 mx-auto mb-2" />
+              )}
               <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                No click data for this page
+                {isRage ? "No rage clicks detected" : "No click data for this page"}
               </p>
               <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-                Click data will appear once users interact with this page
+                {isRage
+                  ? "Good news — users aren't furiously clicking here"
+                  : "Click data will appear once users interact with this page"}
               </p>
             </div>
           </div>

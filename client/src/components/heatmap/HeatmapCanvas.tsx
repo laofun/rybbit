@@ -3,6 +3,8 @@
 import { useEffect, useRef } from "react";
 import { HeatmapDataPoint } from "../../api/analytics/endpoints/heatmap";
 
+export type HeatmapPalette = "spectrum" | "rage";
+
 interface HeatmapCanvasProps {
   points: HeatmapDataPoint[];
   width: number;
@@ -11,16 +13,27 @@ interface HeatmapCanvasProps {
   maxOpacity?: number;
   blur?: number;
   gridResolution?: number;
+  palette?: HeatmapPalette;
 }
 
-// Color gradient for heatmap (blue -> cyan -> green -> yellow -> red)
-const GRADIENT_COLORS = [
-  { stop: 0, color: "rgba(0, 0, 255, 0)" },
-  { stop: 0.25, color: "rgba(0, 255, 255, 0.5)" },
-  { stop: 0.5, color: "rgba(0, 255, 0, 0.6)" },
-  { stop: 0.75, color: "rgba(255, 255, 0, 0.7)" },
-  { stop: 1, color: "rgba(255, 0, 0, 0.8)" },
-];
+const PALETTES: Record<HeatmapPalette, { stop: number; color: string }[]> = {
+  // Generic intensity ramp: blue -> cyan -> green -> yellow -> red
+  spectrum: [
+    { stop: 0, color: "rgba(0, 0, 255, 0)" },
+    { stop: 0.25, color: "rgba(0, 255, 255, 0.5)" },
+    { stop: 0.5, color: "rgba(0, 255, 0, 0.6)" },
+    { stop: 0.75, color: "rgba(255, 255, 0, 0.7)" },
+    { stop: 1, color: "rgba(255, 0, 0, 0.8)" },
+  ],
+  // Frustration ramp: amber -> orange -> deep red. Visually says
+  // "this is bad" instead of "this is popular".
+  rage: [
+    { stop: 0, color: "rgba(255, 200, 0, 0)" },
+    { stop: 0.4, color: "rgba(255, 140, 0, 0.55)" },
+    { stop: 0.75, color: "rgba(255, 60, 30, 0.75)" },
+    { stop: 1, color: "rgba(180, 20, 20, 0.9)" },
+  ],
+};
 
 export function HeatmapCanvas({
   points,
@@ -30,6 +43,7 @@ export function HeatmapCanvas({
   maxOpacity = 0.8,
   blur = 15,
   gridResolution = 100,
+  palette = "spectrum",
 }: HeatmapCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -95,7 +109,7 @@ export function HeatmapCanvas({
     if (!gradientCtx) return;
 
     const linearGradient = gradientCtx.createLinearGradient(0, 0, 256, 0);
-    GRADIENT_COLORS.forEach(({ stop, color }) => {
+    PALETTES[palette].forEach(({ stop, color }) => {
       linearGradient.addColorStop(stop, color);
     });
     gradientCtx.fillStyle = linearGradient;
@@ -116,7 +130,7 @@ export function HeatmapCanvas({
     }
 
     ctx.putImageData(outputData, 0, 0);
-  }, [points, width, height, radius, maxOpacity, blur, gridResolution]);
+  }, [points, width, height, radius, maxOpacity, blur, gridResolution, palette]);
 
   if (points.length === 0) {
     return null;
