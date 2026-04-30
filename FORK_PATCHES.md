@@ -113,7 +113,9 @@ Upstream's `docker-compose.yml` is untouched.
 
 **Workflow on merge conflict here**: keep upstream's version, then run `cd server && npm run build:analytics` and commit the rebuilt output as a separate commit on top.
 
-> Roadmap item: gitignore these and rebuild in Dockerfile / CI to remove this conflict surface entirely.
+**Won't-fix (analyzed 2026-04-30):** the obvious "gitignore + rebuild in Dockerfile" approach does not work. `.gitignore` does not untrack files that upstream owns — every `git rebase master` replays upstream commits that re-add them, so conflicts reappear in renamed-vs-deleted form instead of disappearing. `.gitattributes merge=ours` would discard upstream source changes, which is wrong. The real cause of conflict is the 3-line viewport-metadata patch in `server/src/analytics-script/sessionReplay.ts` (uses `window.innerWidth/Height` instead of `screen.*` so heatmap x-normalization works on windowed browsers). As long as that source diff exists, build output diverges. The proper long-term fix is to upstream that patch (it is a bug fix for non-fullscreen browsers) so the source diff goes to zero. Until then, the keep-upstream-then-rebuild workflow above is the supported path.
+
+`server/Dockerfile` already runs `npm run build` (= `tsc && build:analytics`) at production build time, so deployed artifacts are always fresh regardless of what is checked in. The check-in only matters for local dev; do not delete it without checking that upstream has not started shipping unbuilt sources.
 
 ### E. R2 self-host (implemented)
 
