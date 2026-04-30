@@ -24,6 +24,8 @@ export interface ClickHeatmapResult {
 
 export type HeatmapMode = "all" | "rage";
 
+export type PathMatchMode = "exact" | "prefix";
+
 // Click heatmap response type
 export interface ClickHeatmapResponse {
   data: ClickHeatmapResult;
@@ -52,6 +54,7 @@ export interface ClickHeatmapParams extends CommonApiParams {
   viewportBreakpoint?: ViewportBreakpoint;
   gridResolution?: number;
   mode?: HeatmapMode;
+  matchMode?: PathMatchMode;
 }
 
 // Heatmap pages params
@@ -73,6 +76,7 @@ export async function fetchClickHeatmap(
     viewportBreakpoint: params.viewportBreakpoint,
     gridResolution: params.gridResolution,
     mode: params.mode,
+    matchMode: params.matchMode,
   };
 
   return authedFetch<ClickHeatmapResponse>(`/sites/${site}/heatmap/clicks`, queryParams);

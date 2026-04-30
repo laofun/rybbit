@@ -4,7 +4,7 @@ import { Flame, Loader2, MousePointerClick } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useGetClickHeatmap } from "../../../../api/analytics/hooks/heatmap/useGetClickHeatmap";
 import { HeatmapCanvas } from "../../../../components/heatmap/HeatmapCanvas";
-import { HeatmapMode, ViewportBreakpoint } from "../../../../api/analytics/endpoints/heatmap";
+import { HeatmapMode, PathMatchMode, ViewportBreakpoint } from "../../../../api/analytics/endpoints/heatmap";
 import { HeatmapIntensity, DEFAULT_INTENSITY } from "./HeatmapControls";
 
 interface HeatmapViewerProps {
@@ -15,6 +15,7 @@ interface HeatmapViewerProps {
   height: number;
   intensity?: HeatmapIntensity;
   mode?: HeatmapMode;
+  matchMode?: PathMatchMode;
 }
 
 /** Floor for iframe height. Pages with no recorded scroll data (legacy
@@ -37,12 +38,14 @@ export function HeatmapViewer({
   height,
   intensity = DEFAULT_INTENSITY,
   mode = "all",
+  matchMode = "exact",
 }: HeatmapViewerProps) {
   const { data, isLoading, error } = useGetClickHeatmap({
     pathname,
     viewportBreakpoint,
     gridResolution: 100,
     mode,
+    matchMode,
   });
 
   const isRage = mode === "rage";

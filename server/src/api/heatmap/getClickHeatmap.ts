@@ -13,11 +13,12 @@ export interface GetClickHeatmapRequest {
     viewportBreakpoint?: "mobile" | "tablet" | "desktop" | "all";
     gridResolution?: string;
     mode?: HeatmapMode;
+    matchMode?: "exact" | "prefix";
   }>;
 }
 
 export async function getClickHeatmap(req: FastifyRequest<GetClickHeatmapRequest>, res: FastifyReply) {
-  const { pathname, viewportBreakpoint, gridResolution, mode, ...filterParams } = req.query;
+  const { pathname, viewportBreakpoint, gridResolution, mode, matchMode, ...filterParams } = req.query;
   const siteId = Number(req.params.siteId);
 
   if (!Number.isFinite(siteId) || siteId <= 0 || siteId > 65535) {
@@ -34,12 +35,14 @@ export async function getClickHeatmap(req: FastifyRequest<GetClickHeatmapRequest
     : 100;
 
   const normalizedMode: HeatmapMode = mode === "rage" ? "rage" : "all";
+  const normalizedMatchMode: "exact" | "prefix" = matchMode === "prefix" ? "prefix" : "exact";
 
   try {
     const serviceOpts = {
       ...filterParams,
       viewportBreakpoint: viewportBreakpoint || "all",
       gridResolution: clampedGridResolution,
+      matchMode: normalizedMatchMode,
     };
 
     const result =

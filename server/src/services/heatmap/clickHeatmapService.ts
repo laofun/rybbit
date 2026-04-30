@@ -29,6 +29,7 @@ export interface HeatmapPage {
 }
 
 type ViewportBreakpoint = "mobile" | "tablet" | "desktop" | "all";
+export type PathMatchMode = "exact" | "prefix";
 
 const VIEWPORT_BREAKPOINTS = {
   mobile: { max: 768 },
@@ -56,6 +57,15 @@ function getSessionFilterClause(siteId: number, options: FilterParams<unknown>):
       ${eventsTimeStatement}
       ${filterStatement}
   )`;
+}
+
+function getPathnameClause(matchMode: PathMatchMode): string {
+  if (matchMode === "prefix") {
+    return `AND (startsWith(src.pathname, {pathname:String})
+             OR (src.pathname = '' AND startsWith(path(srm.page_url), {pathname:String})))`;
+  }
+  return `AND (src.pathname = {pathname:String}
+             OR (src.pathname = '' AND path(srm.page_url) = {pathname:String}))`;
 }
 
 function getViewportCondition(breakpoint: ViewportBreakpoint): string {
@@ -94,9 +104,11 @@ export class ClickHeatmapService {
     options: FilterParams<{
       viewportBreakpoint?: ViewportBreakpoint;
       gridResolution?: number; // Number of grid cells (default 100 = 1% resolution)
+      matchMode?: PathMatchMode;
     }>
   ): Promise<ClickHeatmapResult> {
-    const { viewportBreakpoint = "all", gridResolution = 100 } = options;
+    const { viewportBreakpoint = "all", gridResolution = 100, matchMode = "exact" } = options;
+    const pathnameClause = getPathnameClause(matchMode);
 
     const timeStatement = getTimeStatement(options).replace(/timestamp/g, "src.timestamp");
     const viewportCondition = getViewportCondition(viewportBreakpoint).replace(
@@ -121,8 +133,7 @@ export class ClickHeatmapService {
       WHERE src.site_id = {siteId:UInt16}
         AND src.viewport_width > 0
         AND src.viewport_height > 0
-        AND (src.pathname = {pathname:String}
-             OR (src.pathname = '' AND path(srm.page_url) = {pathname:String}))
+        ${pathnameClause}
         ${viewportCondition}
         ${timeStatement}
         ${sessionFilter}
@@ -175,8 +186,7 @@ export class ClickHeatmapService {
         AND src.x >= 0 AND src.y >= 0
         AND src.x <= src.viewport_width
         AND src.y <= src.viewport_height
-        AND (src.pathname = {pathname:String}
-             OR (src.pathname = '' AND path(srm.page_url) = {pathname:String}))
+        ${pathnameClause}
         ${viewportCondition}
         ${timeStatement}
         ${sessionFilter}
@@ -196,8 +206,7 @@ export class ClickHeatmapService {
       WHERE src.site_id = {siteId:UInt16}
         AND src.viewport_width > 0
         AND src.viewport_height > 0
-        AND (src.pathname = {pathname:String}
-             OR (src.pathname = '' AND path(srm.page_url) = {pathname:String}))
+        ${pathnameClause}
         ${viewportCondition}
         ${timeStatement}
         ${sessionFilter}
@@ -242,9 +251,11 @@ export class ClickHeatmapService {
     options: FilterParams<{
       viewportBreakpoint?: ViewportBreakpoint;
       gridResolution?: number;
+      matchMode?: PathMatchMode;
     }>
   ): Promise<ClickHeatmapResult> {
-    const { viewportBreakpoint = "all", gridResolution = 100 } = options;
+    const { viewportBreakpoint = "all", gridResolution = 100, matchMode = "exact" } = options;
+    const pathnameClause = getPathnameClause(matchMode);
 
     const timeStatement = getTimeStatement(options).replace(/timestamp/g, "src.timestamp");
     const viewportCondition = getViewportCondition(viewportBreakpoint).replace(
@@ -268,8 +279,7 @@ export class ClickHeatmapService {
       WHERE src.site_id = {siteId:UInt16}
         AND src.viewport_width > 0
         AND src.viewport_height > 0
-        AND (src.pathname = {pathname:String}
-             OR (src.pathname = '' AND path(srm.page_url) = {pathname:String}))
+        ${pathnameClause}
         ${viewportCondition}
         ${timeStatement}
         ${sessionFilter}
@@ -325,8 +335,7 @@ export class ClickHeatmapService {
           AND src.x >= 0 AND src.y >= 0
           AND src.x <= src.viewport_width
           AND src.y <= src.viewport_height
-          AND (src.pathname = {pathname:String}
-               OR (src.pathname = '' AND path(srm.page_url) = {pathname:String}))
+          ${pathnameClause}
           ${viewportCondition}
           ${timeStatement}
           ${sessionFilter}
@@ -353,8 +362,7 @@ export class ClickHeatmapService {
         WHERE src.site_id = {siteId:UInt16}
           AND src.viewport_width > 0
           AND src.viewport_height > 0
-          AND (src.pathname = {pathname:String}
-               OR (src.pathname = '' AND path(srm.page_url) = {pathname:String}))
+          ${pathnameClause}
           ${viewportCondition}
           ${timeStatement}
           ${sessionFilter}

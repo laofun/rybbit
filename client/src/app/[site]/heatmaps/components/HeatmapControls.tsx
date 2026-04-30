@@ -1,7 +1,7 @@
 "use client";
 
 import { Flame, Monitor, MousePointerClick, RotateCcw, Smartphone, Tablet } from "lucide-react";
-import { HeatmapMode, ViewportBreakpoint } from "../../../../api/analytics/endpoints/heatmap";
+import { HeatmapMode, PathMatchMode, ViewportBreakpoint } from "../../../../api/analytics/endpoints/heatmap";
 import { cn } from "../../../../lib/utils";
 
 export interface HeatmapIntensity {
@@ -23,7 +23,14 @@ interface HeatmapControlsProps {
   onViewportChange: (breakpoint: ViewportBreakpoint) => void;
   intensity: HeatmapIntensity;
   onIntensityChange: (intensity: HeatmapIntensity) => void;
+  matchMode: PathMatchMode;
+  onMatchModeChange: (matchMode: PathMatchMode) => void;
 }
+
+const MATCH_MODE_OPTIONS: { value: PathMatchMode; label: string; tip: string }[] = [
+  { value: "exact", label: "Exact", tip: "Only this exact pathname" },
+  { value: "prefix", label: "Prefix", tip: "This pathname and everything below it (e.g. /products → /products/123)" },
+];
 
 const VIEWPORT_OPTIONS: { value: ViewportBreakpoint; label: string; icon: React.ReactNode }[] = [
   { value: "all", label: "All", icon: null },
@@ -84,6 +91,8 @@ export function HeatmapControls({
   onViewportChange,
   intensity,
   onIntensityChange,
+  matchMode,
+  onMatchModeChange,
 }: HeatmapControlsProps) {
   const isDefault =
     intensity.radius === DEFAULT_INTENSITY.radius &&
@@ -112,6 +121,30 @@ export function HeatmapControls({
             {option.label}
           </button>
         ))}
+      </div>
+
+      {/* Path match toggle */}
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-neutral-500 dark:text-neutral-400">Match:</span>
+        <div className="flex items-center bg-neutral-100 dark:bg-neutral-800 rounded-lg p-0.5">
+          {MATCH_MODE_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={matchMode === option.value}
+              title={option.tip}
+              onClick={() => onMatchModeChange(option.value)}
+              className={cn(
+                "px-3 py-1.5 text-sm rounded-md transition-colors",
+                matchMode === option.value
+                  ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-neutral-100 shadow-sm"
+                  : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200"
+              )}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Viewport toggle */}
