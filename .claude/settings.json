@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(npm run lint)",
+      "Bash(npm run build)",
+      "Bash(npm run build:analytics)",
+      "Bash(npm test)",
+      "Bash(npm run test:run)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(npx tsc --noEmit:*)",
+      "Bash(npm install)",
+      "Bash(npm install:*)",
+      "Bash(git status)",
+      "Bash(git status:*)",
+      "Bash(git diff)",
+      "Bash(git diff:*)",
+      "Bash(git log)",
+      "Bash(git log:*)",
+      "Bash(git show)",
+      "Bash(git show:*)",
+      "Bash(git branch)",
+      "Bash(git branch:*)",
+      "Bash(git fetch upstream)",
+      "Bash(git fetch upstream:*)",
+      "Bash(git fetch origin)",
+      "Bash(git fetch origin:*)",
+      "Bash(git checkout master)",
+      "Bash(git checkout heatmaps-integration)",
+      "Bash(git checkout deploy)",
+      "Bash(git merge --ff-only:*)",
+      "Bash(git rebase master)"
+    ],
+    "deny": [
+      "Bash(npm run db:push:*)",
+      "Bash(npm run db:migrate:*)",
+      "Bash(npm run db:drop:*)",
+      "Bash(npm run db:generate:*)",
+      "Bash(git push --force origin master)",
+      "Bash(git push origin master --force)",
+      "Bash(git reset --hard origin/master)",
+      "Bash(rm -rf:*)"
+    ]
+  }
+}

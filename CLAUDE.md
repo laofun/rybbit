@@ -1,24 +1,62 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code when working in this repository.
+
+> **This is a fork.** Before editing files that exist upstream, read `FORK_PATCHES.md` —
+> it lists every local patch and its merge risk. Sub-CLAUDE.md files in `client/`,
+> `server/`, and `docs/` cover area-specific conventions.
+
+## Branch model
+
+```
+master                 ← mirror of upstream/master, only fast-forward merges
+heatmaps-integration   ← dev branch = master + the patches in FORK_PATCHES.md
+deploy                 ← what Coolify watches; auto-deploys on push
+```
+
+Day-to-day work happens on `heatmaps-integration`. `master` only moves when syncing
+upstream. `deploy` is fast-forwarded from `heatmaps-integration` once a build is
+verified — never commit there directly.
+
+Slash commands automate the recipes: `/sync-upstream`, `/release-deploy`.
 
 ## Commands
 
-- Client: `cd client && npm run dev` (NextJS with Turbopack on port 3002)
-- Server: `cd server && npm run dev` (TypeScript backend)
-- Lint: `cd client && npm run lint` or `cd server && npm run build`
-- TypeCheck: `cd client && tsc --noEmit` or `cd server && tsc`
-- Database: `cd server && npm run db:push` (update DB schema)
+- Client dev: `cd client && npm run dev` (Next.js + Turbopack, port 3002)
+- Server dev: `cd server && npm run dev`
+- Docs dev: `cd docs && npm run dev` (port 3003)
+- Typecheck: `cd client && npx tsc --noEmit` / `cd server && npx tsc --noEmit`
+- Lint: `cd client && npm run lint`
+- Build analytics scripts: `cd server && npm run build:analytics`
+  (regenerates `server/public/script*.js` — commit if changed)
+- Tests: `cd server && npm test` (vitest)
 
-## Code Conventions
+## Code conventions
 
-- TypeScript with strict typing throughout both client and server
-- Client: React functional components with minimal useEffect and inline functions
-- Frontend: Next.js, Tailwind CSS, Shadcn UI, Tanstack Query, Zustand, Luxon, Nivo, react-hook-form
-- Backend: Fastify, Drizzle ORM (Postgres), ClickHouse, Zod
-- Error handling: Use try/catch blocks with specific error types
-- Naming: camelCase for variables/functions, PascalCase for components/types
-- Imports: Group by external, then internal (alphabetical within groups)
-- File organization: Related functionality in same directory
-- Dark mode is default theme
-- Never run any database migration scripts
+- TypeScript strict mode throughout client and server
+- Client: React functional components, minimal `useEffect`, dark mode default
+- Frontend stack: Next.js, Tailwind, Shadcn UI, TanStack Query, Zustand, Luxon, Nivo
+- Backend stack: Fastify, Drizzle ORM (Postgres), ClickHouse, Zod
+- Naming: `camelCase` variables/functions, `PascalCase` components/types, `UPPER_SNAKE_CASE` constants
+- Imports: external first, then internal; alphabetical within groups
+- Error handling: try/catch with specific types; trust internal callers, validate at boundaries
+- Do not add comments explaining what well-named code already says
+- **Never run database migration scripts** (`db:push`, `db:migrate`, `db:drop`)
+
+## Fork-specific guardrails
+
+- When editing files listed in `FORK_PATCHES.md`, keep the patch surface small —
+  prefer extracting new logic into fork-only files (e.g. `server/src/services/heatmap/`)
+  over inline edits to upstream files
+- Branding goes through `client/src/lib/brand.ts` (env-driven `BRAND_NAME`, `SHOW_FOOTER`).
+  Do not hardcode brand strings in upstream files
+- Coolify deployment uses `docker-compose.coolify.yml` (fork-only). Do not edit
+  upstream's `docker-compose.yml`
+- After any analytics-script change, run `npm run build:analytics` and commit
+  the regenerated `server/public/script*.js` separately
+
+## Memory and context
+
+The fork's history and rationale lives in `FORK_PATCHES.md` and `docs/heatmaps-roadmap.md`.
+Read those before proposing structural changes — they encode decisions that aren't
+visible in `git log`.

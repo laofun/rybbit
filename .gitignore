@@ -45,6 +45,11 @@ coverage/
 
 .cursor/
 
-.claude/
+# Claude Code: commit shared config + slash commands; keep local-only files out
+.claude/*
+!.claude/commands/
+!.claude/settings.json
+.claude/settings.local.json
+.claude/projects/
 
 .agents/
