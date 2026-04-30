@@ -14,6 +14,7 @@ import { useSetPageTitle } from "../../hooks/useSetPageTitle";
 import { authClient } from "../../lib/auth";
 import { useConfigs } from "../../lib/configs";
 import { IS_CLOUD } from "../../lib/const";
+import { BRAND_NAME } from "../../lib/brand";
 import { userStore } from "../../lib/userStore";
 
 export default function Page() {
@@ -79,7 +80,7 @@ export default function Page() {
         {/* Brand at top left */}
         <div className="mb-8">
           <span className="inline-block text-xl font-semibold text-neutral-900 dark:text-neutral-100">
-            Atomic Vietnam
+            {BRAND_NAME}
           </span>
         </div>
         <div className="flex-1 flex flex-col justify-center w-full max-w-[550px] mx-auto">
@@ -152,7 +153,7 @@ export default function Page() {
 
         {!IS_CLOUD && (
           <div className="text-xs text-muted-foreground mt-8">
-            Atomic Vietnam
+            {BRAND_NAME}
           </div>
         )}
       </div>

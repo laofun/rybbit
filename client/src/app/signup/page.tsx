@@ -14,6 +14,7 @@ import { addSite } from "../../api/admin/endpoints";
 import { useSetPageTitle } from "../../hooks/useSetPageTitle";
 import { authClient } from "../../lib/auth";
 import { useConfigs } from "../../lib/configs";
+import { BRAND_NAME } from "../../lib/brand";
 import { BACKEND_URL, IS_CLOUD } from "../../lib/const";
 import { trackAdEvent } from "../../lib/trackAdEvent";
 import { userStore } from "../../lib/userStore";
@@ -284,7 +285,7 @@ function SignupPageContent() {
       <div className="flex justify-center items-center h-dvh w-full">
         <Card className="w-full max-w-sm p-1">
           <CardHeader>
-            <div className="text-lg font-semibold">Atomic Vietnam</div>
+            <div className="text-lg font-semibold">{BRAND_NAME}</div>
             <CardTitle className="text-2xl flex justify-center">{t("Sign Up Disabled")}</CardTitle>
           </CardHeader>
           <CardContent>
@@ -309,14 +310,14 @@ function SignupPageContent() {
         {/* Brand */}
         <div className="mb-8">
           <span className="inline-block text-xl font-semibold text-neutral-900 dark:text-neutral-100">
-            Atomic Vietnam
+            {BRAND_NAME}
           </span>
         </div>
 
         <div className="flex-1 flex flex-col justify-center w-full max-w-[550px] mx-auto">
           <div className="mb-8">
             <h1 className="text-3xl font-medium">
-              {IS_CLOUD ? t("Start your 7-day free trial") : t("Get started with Atomic Vietnam")}
+              {IS_CLOUD ? t("Start your 7-day free trial") : `${t("Get started with")} ${BRAND_NAME}`}
             </h1>
             {IS_CLOUD && (
               <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-3">
@@ -374,7 +375,7 @@ function SignupPageContent() {
 
         {!IS_CLOUD && (
           <div className="text-xs text-muted-foreground mt-8">
-            Atomic Vietnam
+            {BRAND_NAME}
           </div>
         )}
       </div>

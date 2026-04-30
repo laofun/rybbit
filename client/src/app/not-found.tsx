@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Home, ArrowLeft, BarChart3 } from "lucide-react";
 import { StandardPage } from "../components/StandardPage";
 import { useSetPageTitle } from "../hooks/useSetPageTitle";
+import { SHOW_FOOTER } from "../lib/brand";
+import { Footer } from "./components/Footer";
 import { Button } from "../components/ui/button";
 
 export default function NotFound() {
@@ -66,6 +68,8 @@ export default function NotFound() {
           </div>
         </div>
       </div>
+
+      {SHOW_FOOTER && <Footer />}
     </StandardPage>
   );
 }

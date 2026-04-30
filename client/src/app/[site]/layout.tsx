@@ -3,8 +3,10 @@ import { useWindowSize } from "@uidotdev/usehooks";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { AppSidebar } from "../../components/AppSidebar";
+import { SHOW_FOOTER } from "../../lib/brand";
 import { useStore } from "../../lib/store";
 import { useSyncStateWithUrl } from "../../lib/urlParams";
+import { Footer } from "../components/Footer";
 import { Header } from "./components/Header/Header";
 import { Sidebar } from "./components/Sidebar/Sidebar";
 
@@ -58,6 +60,12 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
             {/* <div className="px-4 py-2 max-w-[1400px] mx-auto w-full mb-4"> */}
             <Header />
             <div className="flex-1">{children}</div>
+            {SHOW_FOOTER &&
+              !pathname.includes("/map") &&
+              !pathname.includes("/realtime") &&
+              !pathname.includes("/replay") &&
+              !pathname.includes("/globe") &&
+              !pathname.includes("/api-playground") && <Footer />}
           </div>
         </div>
       </div>

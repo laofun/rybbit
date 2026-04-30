@@ -120,10 +120,15 @@ services:
         # via /api path (Rybbit Fastify routes preserve the /api prefix).
         NEXT_PUBLIC_BACKEND_URL: ${BASE_URL}
         NEXT_PUBLIC_DISABLE_SIGNUP: ${DISABLE_SIGNUP:-false}
+        # Fork branding (baked at build time; see client/src/lib/brand.ts).
+        NEXT_PUBLIC_BRAND_NAME: ${BRAND_NAME:-Rybbit}
+        NEXT_PUBLIC_SHOW_FOOTER: ${SHOW_FOOTER:-true}
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_BACKEND_URL=${BASE_URL}
       - NEXT_PUBLIC_DISABLE_SIGNUP=${DISABLE_SIGNUP:-false}
+      - NEXT_PUBLIC_BRAND_NAME=${BRAND_NAME:-Rybbit}
+      - NEXT_PUBLIC_SHOW_FOOTER=${SHOW_FOOTER:-true}
       - DOMAIN_NAME=${DOMAIN_NAME}
     depends_on:
       backend:
