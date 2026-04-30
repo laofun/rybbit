@@ -1,5 +1,6 @@
 import { FilterParams } from "@rybbit/shared";
 import { clickhouse } from "../../db/clickhouse/clickhouse.js";
+import { getFilterStatement } from "../../api/analytics/utils/getFilterStatement.js";
 import { getTimeStatement, processResults } from "../../api/analytics/utils/utils.js";
 
 export interface HeatmapDataPoint {
@@ -34,6 +35,28 @@ const VIEWPORT_BREAKPOINTS = {
   tablet: { min: 769, max: 1024 },
   desktop: { min: 1025 },
 } as const;
+
+/**
+ * Build a session-level filter clause that restricts heatmap results to
+ * sessions whose `events` rows match the dashboard filters. Heatmap
+ * queries pull from `session_replay_clicks` which doesn't carry filter
+ * columns (browser, country, etc.) — so we narrow by session_id via a
+ * subquery against `events` instead. Sessions with no matching events
+ * row drop out, which is the correct behaviour: filters describe event
+ * metadata that the click rows alone can't satisfy.
+ */
+function getSessionFilterClause(siteId: number, options: FilterParams<unknown>): string {
+  const filterStatement = getFilterStatement(options.filters ?? "", siteId);
+  if (!filterStatement) return "";
+  const eventsTimeStatement = getTimeStatement(options);
+  return `AND src.session_id IN (
+    SELECT DISTINCT session_id
+    FROM events
+    WHERE site_id = {siteId:UInt16}
+      ${eventsTimeStatement}
+      ${filterStatement}
+  )`;
+}
 
 function getViewportCondition(breakpoint: ViewportBreakpoint): string {
   if (breakpoint === "all") return "";
@@ -80,6 +103,7 @@ export class ClickHeatmapService {
       /viewport_width/g,
       "src.viewport_width"
     );
+    const sessionFilter = getSessionFilterClause(siteId, options);
 
     const cleanPathname = pathname.replace(/\/+$/, "") || "/";
 
@@ -101,6 +125,7 @@ export class ClickHeatmapService {
              OR (src.pathname = '' AND path(srm.page_url) = {pathname:String}))
         ${viewportCondition}
         ${timeStatement}
+        ${sessionFilter}
     `;
 
     const dimsResult = await clickhouse.query({
@@ -154,6 +179,7 @@ export class ClickHeatmapService {
              OR (src.pathname = '' AND path(srm.page_url) = {pathname:String}))
         ${viewportCondition}
         ${timeStatement}
+        ${sessionFilter}
       GROUP BY x, y
       HAVING value >= 1
       ORDER BY value DESC
@@ -174,6 +200,7 @@ export class ClickHeatmapService {
              OR (src.pathname = '' AND path(srm.page_url) = {pathname:String}))
         ${viewportCondition}
         ${timeStatement}
+        ${sessionFilter}
     `;
 
     const [pointsResult, statsResult] = await Promise.all([
@@ -224,6 +251,7 @@ export class ClickHeatmapService {
       /viewport_width/g,
       "src.viewport_width"
     );
+    const sessionFilter = getSessionFilterClause(siteId, options);
 
     const cleanPathname = pathname.replace(/\/+$/, "") || "/";
 
@@ -244,6 +272,7 @@ export class ClickHeatmapService {
              OR (src.pathname = '' AND path(srm.page_url) = {pathname:String}))
         ${viewportCondition}
         ${timeStatement}
+        ${sessionFilter}
     `;
 
     const dimsResult = await clickhouse.query({
@@ -300,6 +329,7 @@ export class ClickHeatmapService {
                OR (src.pathname = '' AND path(srm.page_url) = {pathname:String}))
           ${viewportCondition}
           ${timeStatement}
+          ${sessionFilter}
         GROUP BY src.session_id, gx, gy
         HAVING click_count >= 3 AND time_span_ms <= 1500 AND vw > 0
       )
@@ -327,6 +357,7 @@ export class ClickHeatmapService {
                OR (src.pathname = '' AND path(srm.page_url) = {pathname:String}))
           ${viewportCondition}
           ${timeStatement}
+          ${sessionFilter}
         GROUP BY src.session_id, toUInt32(src.x / 50), toUInt32((src.y + src.scroll_y) / 50)
         HAVING count() >= 3
            AND dateDiff('millisecond', min(src.timestamp), max(src.timestamp)) <= 1500
@@ -377,6 +408,7 @@ export class ClickHeatmapService {
     const { limit = 100 } = options;
 
     const timeStatement = getTimeStatement(options).replace(/timestamp/g, "src.timestamp");
+    const sessionFilter = getSessionFilterClause(siteId, options);
 
     const query = `
       SELECT
@@ -388,6 +420,7 @@ export class ClickHeatmapService {
         ON src.session_id = srm.session_id AND src.site_id = srm.site_id
       WHERE src.site_id = {siteId:UInt16}
         ${timeStatement}
+        ${sessionFilter}
       GROUP BY pathname
       ORDER BY clickCount DESC
       LIMIT {limit:UInt32}
