@@ -115,14 +115,21 @@ Upstream's `docker-compose.yml` is untouched.
 
 > Roadmap item: gitignore these and rebuild in Dockerfile / CI to remove this conflict surface entirely.
 
-### E. R2 self-host (planned, not yet implemented)
+### E. R2 self-host (implemented)
 
-When implemented, the entire change should follow this pattern:
-- Drop the `IS_CLOUD &&` guard in `server/src/services/storage/r2StorageService.ts:23` (1 line).
-- Add a fork-only doc `docs/r2-selfhost.md` covering bucket setup + Cloudflare lifecycle rule (≥ TTL ClickHouse).
-- Set `R2_*` env vars in `docker-compose.coolify.yml`.
+Self-host instances can now offload session-replay event batches to Cloudflare R2.
+Disabled by default; activates only when R2 credentials are present.
 
-Total upstream-file footprint: 1 line.
+| File | What changed | Lines | Risk |
+|---|---|---|---|
+| `server/src/services/storage/r2StorageService.ts` | Drop `IS_CLOUD &&` gate; remove unused `IS_CLOUD` import; update log message | ~3 | Low (single hunk) |
+| `docker-compose.coolify.yml` | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME` env vars on backend service | ~6 | Low (fork-only file) |
+| `docs/r2-selfhost.md` | NEW — operator guide (bucket setup, API token, lifecycle rule, env vars, verification) | — | None (fork-only) |
+
+Operator workflow lives in `docs/r2-selfhost.md`. Key constraint: the R2 bucket
+lifecycle rule must be **≥ the ClickHouse `session_replay_events` TTL** (default
+30 days) or replay playback breaks for sessions whose batches expired in R2 while
+the ClickHouse pointer still exists.
 
 ## Merge-risk legend
 
