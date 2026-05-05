@@ -55,6 +55,13 @@ Slash commands automate the recipes: `/sync-upstream`, `/release-deploy`.
 - After any analytics-script change, run `npm run build:analytics` and commit
   the regenerated `server/public/script*.js` separately
 
+## Claude local settings
+
+- Project-wide Claude settings live in `.claude/settings.json` and may be committed when they are meant for the whole repo.
+- Personal machine-specific overrides should go in `.claude/settings.local.json`.
+- Keep `.claude/settings.local.json` out of git; use it for personal preferences, local permission overrides, and local hooks only.
+- Do not move team-wide rules from `CLAUDE.md` into local settings.
+
 ## Memory and context
 
 The fork's history and rationale lives in `FORK_PATCHES.md` and `docs/heatmaps-roadmap.md`.

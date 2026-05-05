@@ -107,7 +107,9 @@ export function HeatmapViewer({
   // still land on the same DOM element when displayed at 1200 wide.
   // Without this, responsive layouts shift elements horizontally and
   // dots appear in empty space.
-  const scale = refViewportWidth > 0 ? width / refViewportWidth : 1;
+  const fitScale = refViewportWidth > 0 ? width / refViewportWidth : 1;
+  const isNarrowViewport = refViewportWidth > 0 && refViewportWidth <= 1024;
+  const displayScale = isNarrowViewport ? Math.min(fitScale, 1) : fitScale;
   const isReliablePageHeight =
     refPageHeight > 0 &&
     refViewportHeight > 0 &&
@@ -118,10 +120,11 @@ export function HeatmapViewer({
   const iframeNaturalHeight = isReliablePageHeight
     ? Math.min(MAX_IFRAME_HEIGHT, refPageHeight)
     : MIN_IFRAME_HEIGHT;
+  const iframeNaturalWidth = refViewportWidth || width;
+  const renderedWidth = Math.max(1, Math.round(iframeNaturalWidth * displayScale));
   // After scaling, the rendered area is this tall - what the user sees
   // and what the canvas overlay must match.
-  const renderedHeight = Math.max(visibleHeight + 100, Math.round(iframeNaturalHeight * scale));
-  const iframeNaturalWidth = refViewportWidth || width;
+  const renderedHeight = Math.max(visibleHeight + 100, Math.round(iframeNaturalHeight * displayScale));
 
   // Canvas overlay must use the SAME y-normalization basis the server
   // used (refPageHeight). The iframe can be taller (legacy fallback to
@@ -130,7 +133,7 @@ export function HeatmapViewer({
   // Without this the canvas stretches over the whole iframe and dots
   // drift downward proportionally to (iframeNaturalHeight / pageHeight).
   const heatmapHeight =
-    refPageHeight > 0 ? Math.max(1, Math.round(refPageHeight * scale)) : renderedHeight;
+    refPageHeight > 0 ? Math.max(1, Math.round(refPageHeight * displayScale)) : renderedHeight;
 
   return (
     <div className="flex flex-col h-full">
@@ -162,45 +165,45 @@ export function HeatmapViewer({
         className="flex-1 relative bg-white dark:bg-neutral-950 rounded-b-lg overflow-y-auto overflow-x-hidden"
         style={{ height: visibleHeight }}
       >
-        <div className="relative" style={{ width: "100%", height: renderedHeight }}>
-          {/* Iframe is sized to the recorded viewport width / natural
-              page height, then scaled down with CSS transform so the
-              page lays out at recording resolution but visually fills
-              our UI width. transform-origin top-left so 0,0 maps to
-              the same corner as recording. pointer-events: none lets
-              wheel scroll bubble to the wrapper. */}
-          <iframe
-            src={pageUrl}
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              width: iframeNaturalWidth,
-              height: iframeNaturalHeight,
-              border: 0,
-              pointerEvents: "none",
-              opacity: iframeLoaded && !iframeError ? 1 : 0.3,
-              transform: `scale(${scale})`,
-              transformOrigin: "top left",
-            }}
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-            onLoad={() => setIframeLoaded(true)}
-            onError={() => setIframeError(true)}
-            title="Page Preview"
-          />
-
-          {points.length > 0 && (
-            <HeatmapCanvas
-              points={points}
-              width={width}
-              height={heatmapHeight}
-              gridResolution={100}
-              radius={intensity.radius}
-              blur={intensity.blur}
-              maxOpacity={intensity.maxOpacity}
-              palette={isRage ? "rage" : "spectrum"}
+        <div className="flex justify-center" style={{ minWidth: "100%" }}>
+          <div className="relative" style={{ width: renderedWidth, height: renderedHeight }}>
+            {/* Iframe is sized to the recorded viewport width / natural
+                page height, then transform-scaled so the page keeps its
+                recorded layout while fitting the available viewer space.
+                Narrow mobile/tablet viewports are not upscaled past 1x. */}
+            <iframe
+              src={pageUrl}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: iframeNaturalWidth,
+                height: iframeNaturalHeight,
+                border: 0,
+                pointerEvents: "none",
+                opacity: iframeLoaded && !iframeError ? 1 : 0.3,
+                transform: `scale(${displayScale})`,
+                transformOrigin: "top left",
+              }}
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+              onLoad={() => setIframeLoaded(true)}
+              onError={() => setIframeError(true)}
+              title="Page Preview"
             />
-          )}
+
+            {points.length > 0 && (
+              <HeatmapCanvas
+                points={points}
+                width={renderedWidth}
+                height={heatmapHeight}
+                gridResolution={100}
+                radius={intensity.radius}
+                blur={intensity.blur}
+                maxOpacity={intensity.maxOpacity}
+                palette={isRage ? "rage" : "spectrum"}
+              />
+            )}
+          </div>
         </div>
 
         {/* No-data overlay (sticky inside the scroller so it stays
