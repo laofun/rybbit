@@ -32,6 +32,7 @@ export function useGetSessions({
   minDuration?: number;
 }) {
   const { time, site, timezone } = useStore();
+  const hasSite = site.length > 0;
 
   const filteredFilters = getFilteredFilters(SESSION_PAGE_FILTERS);
 
@@ -55,6 +56,7 @@ export function useGetSessions({
         minDuration,
       });
     },
+    enabled: hasSite,
     staleTime: Infinity,
   });
 }
@@ -71,6 +73,7 @@ export function useGetSessionsInfinite({
   refetchInterval?: number;
 }) {
   const { time, site, timezone } = useStore();
+  const hasSite = site.length > 0;
 
   const filteredFilters = getFilteredFilters(SESSION_PAGE_FILTERS);
 
@@ -90,6 +93,7 @@ export function useGetSessionsInfinite({
         limit,
       });
     },
+    enabled: hasSite,
     initialPageParam: 1,
     getNextPageParam: (lastPage: { data: GetSessionsResponse }, allPages) => {
       // If we have data and it's a full page (100 items), there might be more

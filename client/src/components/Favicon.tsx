@@ -1,11 +1,19 @@
 import { useState } from "react";
 import { cn } from "../lib/utils";
 
-export function Favicon({ domain, className }: { domain: string; className?: string }) {
+export function Favicon({
+  domain,
+  className,
+  allowExternal = false,
+}: {
+  domain: string;
+  className?: string;
+  allowExternal?: boolean;
+}) {
   const [imageError, setImageError] = useState(false);
   const firstLetter = domain.charAt(0).toUpperCase();
 
-  if (imageError) {
+  if (!allowExternal || imageError) {
     return (
       <div
         className={cn(

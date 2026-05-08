@@ -189,7 +189,7 @@ export function AdvancedTab({ form, monitorType }: AdvancedTabProps) {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>IP Version</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value ?? "any"}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue />

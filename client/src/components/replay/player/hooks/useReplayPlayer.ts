@@ -48,6 +48,7 @@ export const useReplayPlayer = ({ data, width, height }: UseReplayPlayerProps) =
             height: heightRef.current - CONTROLS_HEIGHT,
             autoPlay: false,
             showController: false, // We'll use custom controls
+            UNSAFE_replayCanvas: true,
           },
         });
 

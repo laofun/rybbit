@@ -37,7 +37,7 @@ export function GeneralTab({ form, monitor, isEdit, monitorType }: GeneralTabPro
           render={({ field }) => (
             <FormItem>
               <FormLabel>Monitor Type</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <Select onValueChange={field.onChange} value={field.value ?? "http"}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue />
@@ -85,7 +85,7 @@ export function GeneralTab({ form, monitor, isEdit, monitorType }: GeneralTabPro
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>HTTP Method</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value ?? "GET"}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue />
@@ -173,8 +173,7 @@ export function GeneralTab({ form, monitor, isEdit, monitorType }: GeneralTabPro
             <FormLabel>Check Interval</FormLabel>
             <Select
               onValueChange={value => field.onChange(parseInt(value))}
-              value={field.value?.toString()}
-              defaultValue={field.value?.toString()}
+              value={field.value?.toString() ?? String(INTERVAL_OPTIONS[2].value)}
             >
               <FormControl>
                 <SelectTrigger>
