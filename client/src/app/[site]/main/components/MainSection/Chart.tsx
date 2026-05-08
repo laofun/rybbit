@@ -119,6 +119,17 @@ const formatTooltipValue = (value: number, selectedStat: StatType): string => {
 
 const Y_TICK_VALUES = 5;
 
+export const buildDashedLinePath = (
+  points: Array<{ x: number | null; y: number | null }>,
+  lineGenerator: (points: Array<{ x: number | null; y: number | null }>) => string | null
+) => {
+  if (points.some(point => point.x === null || point.y === null)) {
+    return "";
+  }
+
+  return lineGenerator(points) ?? "";
+};
+
 export function Chart({
   data,
   previousData,
@@ -237,15 +248,26 @@ export function Chart({
     xScale,
     yScale,
   }: LineCustomSvgLayerProps<LineSeries>) => {
-    return series.map(({ id, data, color }) => (
-      <path
-        key={id}
-        d={lineGenerator(data.map(d => ({ x: xScale(d.data.x), y: yScale(d.data.y) })))!}
-        fill="none"
-        stroke={color}
-        style={id === "dashedData" ? { strokeDasharray: "3, 6", strokeWidth: 3 } : { strokeWidth: 2 }}
-      />
-    ));
+    return series.map(({ id, data, color }) => {
+      const path = buildDashedLinePath(
+        data.map(d => ({ x: xScale(d.data.x), y: yScale(d.data.y) })),
+        lineGenerator as (points: Array<{ x: number | null; y: number | null }>) => string | null
+      );
+
+      if (!path) {
+        return null;
+      }
+
+      return (
+        <path
+          key={id}
+          d={path}
+          fill="none"
+          stroke={color}
+          style={id === "dashedData" ? { strokeDasharray: "3, 6", strokeWidth: 3 } : { strokeWidth: 2 }}
+        />
+      );
+    });
   };
 
   return (
